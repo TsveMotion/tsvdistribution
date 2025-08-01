@@ -17,15 +17,8 @@ import {
 export default function HomePage() {
   const { user, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   const handleSignIn = () => {
-    setAuthMode('login');
-    setAuthModalOpen(true);
-  };
-
-  const handleSignUp = () => {
-    setAuthMode('register');
     setAuthModalOpen(true);
   };
 
@@ -55,15 +48,9 @@ export default function HomePage() {
         <div className="flex items-center space-x-4">
           <button
             onClick={handleSignIn}
-            className="px-6 py-2 text-cyan-400 hover:text-white transition-colors"
-          >
-            Sign In
-          </button>
-          <button
-            onClick={handleSignUp}
             className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
           >
-            Get Started
+            Sign In
           </button>
         </div>
       </nav>
@@ -79,23 +66,20 @@ export default function HomePage() {
         </h1>
         
         <p className="text-xl md:text-2xl text-slate-300 mb-8 max-w-3xl">
-          Revolutionary inventory management solution with real-time tracking, 
+          Exclusive inventory management solution with real-time tracking, 
           automated invoicing, and intelligent warehouse optimization.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
           <button
-            onClick={handleSignUp}
+            onClick={handleSignIn}
             className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg shadow-cyan-500/25"
           >
-            Start Your Journey
+            Access System
           </button>
-          <button
-            onClick={handleSignIn}
-            className="px-8 py-4 border-2 border-cyan-500/50 hover:border-cyan-400 rounded-xl font-semibold text-lg transition-all duration-200 hover:bg-cyan-500/10"
-          >
-            Sign In
-          </button>
+        </div>
+        <div className="mt-4 text-sm text-gray-400">
+          <p>🔒 Invite Only Access</p>
         </div>
       </div>
 
@@ -133,7 +117,7 @@ export default function HomePage() {
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
-        initialMode={authMode}
+        initialMode="login"
       />
     </div>
   );

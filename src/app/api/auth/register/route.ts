@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       name,
       email,
       password: hashedPassword,
-      role: role as 'admin' | 'manager' | 'employee',
+      role: (role as 'admin' | 'staff' | 'employee') || 'employee',
       createdAt: new Date(),
       updatedAt: new Date()
     };

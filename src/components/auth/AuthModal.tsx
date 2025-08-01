@@ -1,24 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import LoginForm from './LoginForm';
-import RegisterForm from './RegisterForm';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialMode?: 'login' | 'register';
+  initialMode?: 'login';
 }
 
-export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
-  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
-
+export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   if (!isOpen) return null;
-
-  const handleToggleMode = () => {
-    setMode(mode === 'login' ? 'register' : 'login');
-  };
 
   const handleSuccess = () => {
     onClose();
@@ -34,11 +27,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           <XMarkIcon className="h-6 w-6" />
         </button>
         
-        {mode === 'login' ? (
-          <LoginForm onToggleMode={handleToggleMode} onSuccess={handleSuccess} />
-        ) : (
-          <RegisterForm onToggleMode={handleToggleMode} onSuccess={handleSuccess} />
-        )}
+        <LoginForm onSuccess={handleSuccess} />
       </div>
     </div>
   );

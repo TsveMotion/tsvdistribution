@@ -2,11 +2,12 @@
  * Tracking service integrations for various carriers
  * 
  * This module provides interfaces to different carrier tracking APIs
- * including Royal Mail, Evri, and Track17
+ * using Ship24 as the primary tracking provider
  */
 
 import { TrackingUpdate } from '@/types/database';
 import { ObjectId } from 'mongodb';
+import { Ship24Service, Ship24TrackerData } from './ship24';
 
 // Base interface for tracking responses
 interface TrackingResponse {
@@ -20,34 +21,39 @@ interface TrackingResponse {
   error?: string;
 }
 
-// Royal Mail tracking service
-export async function trackRoyalMail(trackingNumber: string): Promise<TrackingResponse> {
+// Ship24 tracking service for all carriers
+export async function trackWithShip24(trackingNumber: string, courierCode?: string[]): Promise<TrackingResponse> {
   try {
-    // In a real implementation, this would call the Royal Mail API
-    // For now, we'll simulate a response
+    const ship24 = new Ship24Service();
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Auto-detect courier if not provided
+    const detectedCouriers = courierCode || Ship24Service.detectCourierFromTrackingNumber(trackingNumber);
     
-    // Generate a random status for demonstration
-    const statuses = [
-      'Shipped',
-      'In Transit',
-      'Out for Delivery',
-      'Delivered',
-      'Attempted Delivery'
-    ];
+    // Get tracking results
+    const result = await ship24.getSingleTrackingResult(trackingNumber);
     
-    const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-    const locations = [
-      'London Sorting Center',
-      'Manchester Distribution Hub',
-      'Birmingham Depot',
-      'Local Delivery Office',
-      'International Processing Center'
-    ];
+    if (!result || !result.events || result.events.length === 0) {
+      return {
+        isSuccess: false,
+        trackingNumber,
+        carrier: detectedCouriers.join(', ') || 'Unknown',
+        status: 'No tracking information available',
+        error: 'No tracking events found'
+      };
+    }
     
-    const randomLocation = locations[Math.floor(Math.random() * locations.length)];
+    // Get the latest event
+    const latestEvent = result.events[0]; // Events are ordered by date
+    
+    return {
+      isSuccess: true,
+      trackingNumber,
+      carrier: latestEvent.courierCode || detectedCouriers.join(', ') || 'Unknown',
+      status: latestEvent.statusMilestone || latestEvent.status,
+      location: latestEvent.location,
+      timestamp: new Date(latestEvent.occurrenceDatetime),
+      description: latestEvent.statusDescription
+    };
     
     return {
       isSuccess: true,

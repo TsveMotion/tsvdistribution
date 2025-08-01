@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import InventoryManagement from './InventoryManagement';
+import OrderTracking from './OrderTracking';
 import {
   CubeIcon,
   ClipboardDocumentListIcon,
@@ -179,12 +181,7 @@ function StatCard({ title, value, icon, change }: { title: string; value: string
 function InventoryTab() {
   return (
     <div>
-      <h2 className="text-3xl font-bold mb-8 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-        Inventory Management
-      </h2>
-      <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8">
-        <p className="text-slate-400 text-center">Inventory management features will be implemented here</p>
-      </div>
+      <InventoryManagement />
     </div>
   );
 }
@@ -192,12 +189,7 @@ function InventoryTab() {
 function OrdersTab() {
   return (
     <div>
-      <h2 className="text-3xl font-bold mb-8 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-        Order Tracking
-      </h2>
-      <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8">
-        <p className="text-slate-400 text-center">Order tracking features will be implemented here</p>
-      </div>
+      <OrderTracking />
     </div>
   );
 }

@@ -48,13 +48,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create new product with timestamps
+    // Create new product with timestamps and proper field handling
     const newProduct: Product = {
-      ...productData,
+      name: productData.name,
+      description: productData.description || '',
+      sku: productData.sku,
+      category: productData.category,
+      price: Number(productData.price) || 0,
+      cost: Number(productData.cost) || 0,
+      quantity: Number(productData.quantity) || 0,
+      minStockLevel: Number(productData.minStockLevel) || 5,
+      supplier: productData.supplier || '',
+      supplierLink: productData.supplierLink || undefined,
+      barcode: productData.barcode || undefined,
+      weight: productData.weight ? Number(productData.weight) : undefined,
+      dimensions: productData.dimensions ? {
+        length: Number(productData.dimensions.length) || 0,
+        width: Number(productData.dimensions.width) || 0,
+        height: Number(productData.dimensions.height) || 0,
+      } : undefined,
+      images: productData.images || [],
+      locations: productData.locations || [],
+      aiGeneratedDescription: productData.aiGeneratedDescription || undefined,
+      aiGeneratedTitle: productData.aiGeneratedTitle || undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
-      locations: productData.locations || [],
-      minStockLevel: productData.minStockLevel || 5,
     };
 
     const db = await getDatabase();

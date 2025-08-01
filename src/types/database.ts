@@ -5,7 +5,7 @@ export interface User {
   email: string;
   password: string;
   name: string;
-  role: 'admin' | 'manager' | 'employee';
+  role: 'admin' | 'staff' | 'employee';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,20 +16,23 @@ export interface Product {
   description: string;
   sku: string;
   category: string;
-  price: number;
-  cost: number;
+  price: number; // in GBP
+  cost: number; // in GBP
   quantity: number;
   minStockLevel: number;
   locations: ProductLocation[];
   supplier: string;
+  supplierLink?: string;
   barcode?: string;
-  weight?: number;
+  weight?: number; // in KG
   dimensions?: {
-    length: number;
-    width: number;
-    height: number;
+    length: number; // in CM
+    width: number; // in CM
+    height: number; // in CM
   };
   images?: string[];
+  aiGeneratedDescription?: string;
+  aiGeneratedTitle?: string;
   createdAt: Date;
   updatedAt: Date;
 }

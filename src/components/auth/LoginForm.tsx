@@ -5,11 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 interface LoginFormProps {
-  onToggleMode: () => void;
   onSuccess: () => void;
 }
 
-export default function LoginForm({ onToggleMode, onSuccess }: LoginFormProps) {
+export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -112,14 +111,8 @@ export default function LoginForm({ onToggleMode, onSuccess }: LoginFormProps) {
       </form>
 
       <div className="mt-6 text-center">
-        <p className="text-slate-400">
-          Don't have an account?{' '}
-          <button
-            onClick={onToggleMode}
-            className="text-cyan-400 hover:text-cyan-300 font-medium"
-          >
-            Create one
-          </button>
+        <p className="text-slate-400 text-sm">
+          🔒 Invite Only System - Contact administrator for access
         </p>
       </div>
     </div>

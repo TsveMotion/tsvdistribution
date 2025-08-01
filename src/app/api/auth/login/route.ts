@@ -14,6 +14,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for hardcoded admin user (invite-only system)
+    if (email === 'Kristiyan@TsvDistributions.com' && password === 'Krisi2201') {
+      const token = generateToken('admin-001', email);
+      
+      return NextResponse.json({
+        message: 'Login successful',
+        token,
+        user: {
+          id: 'admin-001',
+          name: 'Kristiyan',
+          email: 'Kristiyan@TsvDistributions.com',
+          role: 'admin'
+        }
+      });
+    }
+
+    // For future expansion - check database users (currently invite-only)
     const db = await getDatabase();
     const user = await db.collection<User>('users').findOne({ email });
 

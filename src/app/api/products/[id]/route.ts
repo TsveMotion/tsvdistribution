@@ -68,15 +68,40 @@ export async function PUT(
       );
     }
 
-    const updateData = await request.json();
+    const productData = await request.json();
     
     // Prevent updating _id field
-    if (updateData._id) {
-      delete updateData._id;
+    if (productData._id) {
+      delete productData._id;
     }
 
-    // Add updated timestamp
-    updateData.updatedAt = new Date();
+    // Properly handle and validate update data
+    const updateData: Partial<Product> = {
+      ...(productData.name && { name: productData.name }),
+      ...(productData.description !== undefined && { description: productData.description }),
+      ...(productData.sku && { sku: productData.sku }),
+      ...(productData.category && { category: productData.category }),
+      ...(productData.price !== undefined && { price: Number(productData.price) }),
+      ...(productData.cost !== undefined && { cost: Number(productData.cost) }),
+      ...(productData.quantity !== undefined && { quantity: Number(productData.quantity) }),
+      ...(productData.minStockLevel !== undefined && { minStockLevel: Number(productData.minStockLevel) }),
+      ...(productData.supplier !== undefined && { supplier: productData.supplier }),
+      ...(productData.supplierLink !== undefined && { supplierLink: productData.supplierLink || undefined }),
+      ...(productData.barcode !== undefined && { barcode: productData.barcode || undefined }),
+      ...(productData.weight !== undefined && { weight: productData.weight ? Number(productData.weight) : undefined }),
+      ...(productData.dimensions && {
+        dimensions: {
+          length: Number(productData.dimensions.length) || 0,
+          width: Number(productData.dimensions.width) || 0,
+          height: Number(productData.dimensions.height) || 0,
+        }
+      }),
+      ...(productData.images !== undefined && { images: productData.images }),
+      ...(productData.locations !== undefined && { locations: productData.locations }),
+      ...(productData.aiGeneratedDescription !== undefined && { aiGeneratedDescription: productData.aiGeneratedDescription || undefined }),
+      ...(productData.aiGeneratedTitle !== undefined && { aiGeneratedTitle: productData.aiGeneratedTitle || undefined }),
+      updatedAt: new Date(),
+    };
 
     const db = await getDatabase();
     
