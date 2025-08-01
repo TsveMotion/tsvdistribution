@@ -7,7 +7,7 @@ import { getUserFromToken } from '@/lib/auth';
 // GET a single order by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication check
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const id = params.id;
+    const { id } = await params;
     
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(
@@ -50,7 +50,7 @@ export async function GET(
 // PUT update an order by ID
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication check
@@ -59,7 +59,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const id = params.id;
+    const { id } = await params;
     
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(
@@ -139,7 +139,7 @@ export async function PUT(
 // DELETE an order by ID
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication check
@@ -148,7 +148,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const id = params.id;
+    const { id } = await params;
     
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(
@@ -171,10 +171,10 @@ export async function DELETE(
       );
     }
 
-    // Only allow deletion of pending orders
-    if (existingOrder.status !== 'pending') {
+    // Allow deletion of pending and delivered orders
+    if (!['pending', 'delivered', 'cancelled'].includes(existingOrder.status)) {
       return NextResponse.json(
-        { error: 'Only pending orders can be deleted' },
+        { error: 'Only pending, delivered, or cancelled orders can be deleted' },
         { status: 400 }
       );
     }

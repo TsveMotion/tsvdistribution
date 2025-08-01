@@ -300,53 +300,93 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
                         />
                       </td>
                       <td className="px-6 py-4">
-                        <div>
-                          <div className="text-white font-medium">{product.name}</div>
-                          <div className="text-slate-400 text-sm">{product.description}</div>
-                          {product.barcode && (
-                            <div className="text-slate-500 text-xs font-mono mt-1">Barcode: {product.barcode}</div>
-                          )}
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            {product.images && product.images.length > 0 ? (
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="h-12 w-12 rounded-lg object-cover border border-slate-600"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = '/api/placeholder/48/48';
+                                }}
+                              />
+                            ) : (
+                              <div className="h-12 w-12 bg-slate-700 rounded-lg border border-slate-600 flex items-center justify-center">
+                                <PhotoIcon className="h-6 w-6 text-slate-400" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-white font-medium truncate">{product.name}</div>
+                            <div className="text-slate-400 text-sm truncate" title={product.description}>
+                              {product.description && product.description.length > 60 
+                                ? `${product.description.substring(0, 60)}...` 
+                                : product.description || 'No description'}
+                            </div>
+                            {product.barcode && (
+                              <div className="text-slate-500 text-xs font-mono mt-1 flex items-center space-x-1">
+                                <span className="inline-block w-2 h-2 bg-slate-500 rounded-full"></span>
+                                <span>{product.barcode}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-300 font-mono text-sm">{product.sku}</td>
                       <td className="px-6 py-4">
-                        <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-lg text-sm">
+                        <div className="text-slate-300 font-mono text-sm bg-slate-700/50 px-2 py-1 rounded inline-block">
+                          {product.sku}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-3 py-1 bg-gradient-to-r from-slate-600 to-slate-700 text-slate-200 rounded-full text-sm font-medium border border-slate-600">
                           {product.category}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-white font-medium">{product.quantity}</div>
-                        <div className="text-slate-400 text-sm">Min: {product.minStockLevel}</div>
+                        <div className="flex flex-col space-y-1">
+                          <div className="text-white font-bold text-lg">{product.quantity}</div>
+                          <div className="text-slate-400 text-xs flex items-center space-x-1">
+                            <ExclamationTriangleIcon className="h-3 w-3" />
+                            <span>Min: {product.minStockLevel}</span>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-white font-medium">£{product.price.toFixed(2)}</td>
-                      <td className="px-6 py-4 text-slate-300">{product.weight ? `${product.weight} kg` : 'N/A'}</td>
+                      <td className="px-6 py-4">
+                        <div className="text-white font-bold text-lg">£{product.price.toFixed(2)}</div>
+                        <div className="text-slate-400 text-xs">Cost: £{product.cost?.toFixed(2) || '0.00'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-slate-300 font-medium">{product.weight ? `${product.weight} kg` : '—'}</div>
+                      </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getStatusColor(status)}`}>
                           {getStatusText(status)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex space-x-1">
+                        <div className="flex items-center space-x-2">
                           <button
                             onClick={() => handleDetailClick(product)}
-                            className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-700/50 rounded-lg transition-all"
+                            className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-all duration-200 group"
                             title="View Details"
                           >
-                            <EyeIcon className="h-4 w-4" />
+                            <EyeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
                           </button>
                           <button
                             onClick={() => handleEditClick(product)}
-                            className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-700/50 rounded-lg transition-all"
+                            className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-cyan-400/10 rounded-lg transition-all duration-200 group"
                             title="Edit Product"
                           >
-                            <PencilIcon className="h-4 w-4" />
+                            <PencilIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
                           </button>
                           <button
                             onClick={() => handleDeleteClick(product)}
-                            className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700/50 rounded-lg transition-all"
+                            className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-200 group"
                             title="Delete Product"
                           >
-                            <TrashIcon className="h-4 w-4" />
+                            <TrashIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
                           </button>
                         </div>
                       </td>
@@ -541,7 +581,7 @@ function ProductModal({ isOpen, onClose, onSuccess, product }: ProductModalProps
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold text-white">
@@ -586,13 +626,27 @@ function ProductModal({ isOpen, onClose, onSuccess, product }: ProductModalProps
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Description
+                <span className="text-xs text-slate-400 ml-2">({formData.description.length}/500 characters)</span>
+              </label>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => {
+                  if (e.target.value.length <= 500) {
+                    setFormData({ ...formData, description: e.target.value });
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                rows={3}
+                rows={4}
+                maxLength={500}
+                placeholder="Enter product description (max 500 characters)"
               />
+              {formData.description.length >= 450 && (
+                <p className="text-xs text-orange-400 mt-1">
+                  {500 - formData.description.length} characters remaining
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
