@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
 import { generateToken } from '@/lib/auth';
 import { User } from '@/types/database';
+import { ObjectId } from 'mongodb';
 
 // Google OAuth login endpoint
 export async function POST(request: NextRequest) {
+  console.log('Google OAuth POST endpoint called');
   try {
     const body = await request.json();
+    console.log('Request body:', body);
     const { googleId, email, name, action, userId } = body;
 
     if (!googleId || !email || !name) {
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
 
       // Update user with Google account info
       const result = await db.collection<User>('users').updateOne(
-        { _id: userId },
+        { _id: new ObjectId(userId) },
         { 
           $set: { 
             googleId: googleId,
@@ -105,6 +108,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Google OAuth error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
