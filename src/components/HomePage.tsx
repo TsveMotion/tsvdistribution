@@ -8,14 +8,11 @@ import {
   CubeIcon, 
   ClipboardDocumentListIcon, 
   TruckIcon, 
-  DocumentTextIcon,
-  UserCircleIcon,
-  ArrowRightOnRectangleIcon,
-  Cog6ToothIcon
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 
 export default function HomePage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const handleSignIn = () => {

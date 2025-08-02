@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
 import { Product } from '@/types/database';
-import { ObjectId } from 'mongodb';
 import { getUserFromToken } from '@/lib/auth';
 
 // GET all products

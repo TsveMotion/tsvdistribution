@@ -28,7 +28,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       } else {
         setError('Invalid email or password');
       }
-    } catch (error) {
+    } catch {
       setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);

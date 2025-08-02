@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
+import { getDatabase, getClient } from '@/lib/mongodb';
 import { StockMovement, Product } from '@/types/database';
 import { ObjectId } from 'mongodb';
 import { getUserFromToken } from '@/lib/auth';
@@ -279,7 +279,8 @@ export async function POST(request: NextRequest) {
     product.updatedAt = new Date();
 
     // Start a session for transaction
-    const session = db.client.startSession();
+    const client = await getClient();
+    const session = client.startSession();
     
     try {
       await session.withTransaction(async () => {

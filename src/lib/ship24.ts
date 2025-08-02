@@ -1,5 +1,26 @@
 // Ship24 API Integration for shipment tracking
 
+interface Ship24Tracker {
+  trackerId: string;
+  trackingNumber: string;
+  status: string;
+  events?: Ship24TrackingEvent[];
+}
+
+interface Ship24Error {
+  code: string;
+  message: string;
+}
+
+interface Ship24ApiResponse {
+  data: {
+    tracker?: Ship24Tracker;
+    trackers?: Ship24TrackingResult[];
+    trackings?: Ship24TrackingResult[];
+  };
+  errors?: Ship24Error[];
+}
+
 interface Ship24TrackerData {
   trackingNumber: string;
   shipmentReference?: string;
@@ -69,7 +90,7 @@ class Ship24Service {
     this.apiKey = apiKey;
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<Ship24ApiResponse> {
     const url = `${this.baseUrl}${endpoint}`;
     
     const headers = {
@@ -102,6 +123,9 @@ class Ship24Service {
         body: JSON.stringify(data),
       });
 
+      if (!response.data.tracker) {
+        throw new Error('Failed to create tracker - no tracker data returned');
+      }
       return response.data.tracker;
     } catch (error) {
       console.error('Error creating Ship24 tracker:', error);

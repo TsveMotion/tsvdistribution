@@ -354,7 +354,7 @@ const WarehouseVisualization: React.FC = () => {
           
           // Check if location already exists for this product
           const existingLocationIndex = existingLocations.findIndex(
-            (loc: any) => loc.locationId && shelfLocation && loc.locationId.toString() === shelfLocation._id!.toString()
+            (loc: { locationId: string | { toString(): string } }) => loc.locationId && shelfLocation && loc.locationId.toString() === shelfLocation._id!.toString()
           );
           
           let updatedLocations;

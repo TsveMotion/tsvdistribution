@@ -43,7 +43,7 @@ export default function RegisterForm({ onToggleMode, onSuccess }: RegisterFormPr
       } else {
         setError('Registration failed. User may already exist.');
       }
-    } catch (error) {
+    } catch {
       setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);

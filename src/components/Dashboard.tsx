@@ -1,27 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import InventoryManagement from './InventoryManagement';
 import OrderTracking from './OrderTracking';
-import Locations from './Locations';
 import WarehouseVisualization from './WarehouseVisualization';
 import InvoiceManagement from './InvoiceManagement';
 import { Product, Order } from '@/types/database';
 import {
   CubeIcon,
   ClipboardDocumentListIcon,
-  TruckIcon,
   DocumentTextIcon,
-  UserCircleIcon,
-  ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
   HomeIcon,
-  ChartBarIcon,
   BuildingStorefrontIcon,
-  MapPinIcon,
   BanknotesIcon,
   ExclamationTriangleIcon,
+  UserCircleIcon,
+  ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 
 type TabType = 'overview' | 'inventory' | 'orders' | 'locations' | 'invoices' | 'settings';
@@ -33,7 +29,7 @@ export default function Dashboard() {
   const tabs = [
     { id: 'overview' as TabType, name: 'Overview', icon: HomeIcon },
     { id: 'inventory' as TabType, name: 'Inventory', icon: CubeIcon },
-    { id: 'orders' as TabType, name: 'Orders', icon: TruckIcon },
+    { id: 'orders' as TabType, name: 'Orders', icon: ClipboardDocumentListIcon },
     { id: 'locations' as TabType, name: 'Locations', icon: BuildingStorefrontIcon },
     { id: 'invoices' as TabType, name: 'Invoices', icon: DocumentTextIcon },
     { id: 'settings' as TabType, name: 'Settings', icon: Cog6ToothIcon },
@@ -114,8 +110,7 @@ export default function Dashboard() {
 }
 
 function OverviewTab() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState({
     totalProducts: 0,
@@ -129,11 +124,68 @@ function OverviewTab() {
     monthlyRevenue: [] as { month: string; revenue: number }[]
   });
 
-  useEffect(() => {
-    fetchDashboardData();
+  const calculateAnalytics = useCallback((products: Product[], orders: Order[]) => {
+    // Basic counts
+    const totalProducts = products.length;
+    const totalOrders = orders.length;
+    
+    // Low stock items (less than minimum stock level)
+    const lowStockItems = products.filter(p => p.quantity < (p.minStockLevel || 10)).length;
+    
+    // Revenue calculation
+    const totalRevenue = orders
+      .filter(o => o.status !== 'cancelled')
+      .reduce((sum, order) => sum + (order.total || 0), 0);
+    
+    // Best sellers (products with highest sales)
+    const productSales = new Map<string, { name: string; sku: string; soldQuantity: number; revenue: number }>();
+    
+    orders.forEach(order => {
+      if (order.status !== 'cancelled' && order.items) {
+        order.items.forEach(item => {
+          const existing = productSales.get(item.sku) || { name: item.productName, sku: item.sku, soldQuantity: 0, revenue: 0 };
+          existing.soldQuantity += item.quantity;
+          existing.revenue += item.quantity * item.price;
+          productSales.set(item.sku, existing);
+        });
+      }
+    });
+    
+    const bestSellers = Array.from(productSales.values())
+      .sort((a, b) => b.soldQuantity - a.soldQuantity)
+      .slice(0, 5);
+    
+    // Orders by status
+    const ordersByStatus = orders.reduce((acc, order) => {
+      acc[order.status] = (acc[order.status] || 0) + 1;
+      return acc;
+    }, {} as { [key: string]: number });
+    
+    // Recent orders (last 10)
+    const recentOrders = orders
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+    
+    // Inventory value
+    const inventoryValue = products.reduce((sum, p) => sum + (p.quantity * p.price), 0);
+    
+    // Monthly revenue (last 12 months)
+    const monthlyRevenue = getMonthlyRevenue(orders);
+    
+    setAnalytics({
+      totalProducts,
+      totalOrders,
+      totalRevenue,
+      lowStockItems,
+      bestSellers,
+      recentOrders,
+      ordersByStatus,
+      inventoryValue,
+      monthlyRevenue
+    });
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
@@ -148,7 +200,6 @@ function OverviewTab() {
         const productsData = await productsRes.json();
         const ordersData = await ordersRes.json();
         
-        setProducts(productsData);
         setOrders(ordersData);
         
         // Calculate analytics
@@ -159,83 +210,13 @@ function OverviewTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [calculateAnalytics]);
 
-  const calculateAnalytics = (products: Product[], orders: Order[]) => {
-    // Basic counts
-    const totalProducts = products.length;
-    const totalOrders = orders.length;
-    
-    // Low stock items (less than minimum stock level)
-    const lowStockItems = products.filter(p => p.quantity < (p.minStockLevel || 10)).length;
-    
-    // Inventory value
-    const inventoryValue = products.reduce((sum, p) => sum + (p.quantity * p.cost), 0);
-    
-    // Revenue calculation from completed orders
-    const completedOrders = orders.filter(o => o.status === 'delivered');
-    const totalRevenue = completedOrders.reduce((sum, order) => {
-      const orderTotal = order.items?.reduce((itemSum: number, item: any) => {
-        return itemSum + (item.quantity * item.price);
-      }, 0) || 0;
-      return sum + orderTotal;
-    }, 0);
-    
-    // Best sellers calculation
-    const productSales: { [productId: string]: { name: string; sku: string; quantity: number; revenue: number } } = {};
-    
-    completedOrders.forEach(order => {
-      order.items?.forEach((item: any) => {
-        if (!productSales[item.productId]) {
-          const product = products.find(p => p._id?.toString() === item.productId);
-          productSales[item.productId] = {
-            name: product?.name || 'Unknown Product',
-            sku: product?.sku || 'N/A',
-            quantity: 0,
-            revenue: 0
-          };
-        }
-        productSales[item.productId].quantity += item.quantity;
-        productSales[item.productId].revenue += item.quantity * item.price;
-      });
-    });
-    
-    const bestSellers = Object.values(productSales)
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5)
-      .map(item => ({
-        name: item.name,
-        sku: item.sku,
-        soldQuantity: item.quantity,
-        revenue: item.revenue
-      }));
-    
-    // Recent orders (last 5)
-    const recentOrders = orders
-      .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
-      .slice(0, 5);
-    
-    // Orders by status
-    const ordersByStatus = orders.reduce((acc, order) => {
-      acc[order.status] = (acc[order.status] || 0) + 1;
-      return acc;
-    }, {} as { [key: string]: number });
-    
-    // Monthly revenue (last 6 months)
-    const monthlyRevenue = getMonthlyRevenue(completedOrders);
-    
-    setAnalytics({
-      totalProducts,
-      totalOrders,
-      totalRevenue,
-      lowStockItems,
-      bestSellers,
-      recentOrders,
-      ordersByStatus,
-      inventoryValue,
-      monthlyRevenue
-    });
-  };
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+
 
   const getMonthlyRevenue = (orders: Order[]) => {
     const monthlyData: { [key: string]: number } = {};
@@ -255,7 +236,7 @@ function OverviewTab() {
       const orderDate = new Date(order.createdAt || '');
       const monthKey = orderDate.toLocaleString('default', { month: 'short', year: 'numeric' });
       if (monthlyData.hasOwnProperty(monthKey)) {
-        const orderRevenue = order.items?.reduce((sum: number, item: any) => sum + (item.quantity * item.price), 0) || 0;
+        const orderRevenue = order.items?.reduce((sum: number, item) => sum + (item.quantity * item.price), 0) || 0;
         monthlyData[monthKey] += orderRevenue;
       }
     });
@@ -268,8 +249,9 @@ function OverviewTab() {
 
   const formatCurrency = (amount: number) => `£${amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
+  const formatDate = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
       year: 'numeric'
@@ -405,7 +387,7 @@ function OverviewTab() {
         <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6">
           <h3 className="text-xl font-semibold text-white mb-4">📈 Monthly Revenue</h3>
           <div className="space-y-3">
-            {analytics.monthlyRevenue.map((month, index) => {
+            {analytics.monthlyRevenue.map((month) => {
               const maxRevenue = Math.max(...analytics.monthlyRevenue.map(m => m.revenue));
               const widthPercentage = maxRevenue > 0 ? (month.revenue / maxRevenue) * 100 : 0;
               

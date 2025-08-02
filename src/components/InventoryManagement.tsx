@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Product } from '@/types/database';
 import { generateBarcodeForSKU } from '@/lib/barcode';
 import {
@@ -10,13 +10,13 @@ import {
   PencilIcon,
   TrashIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon,
   XMarkIcon,
   EyeIcon,
   PrinterIcon,
   PhotoIcon,
   SparklesIcon
 } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 
 interface InventoryManagementProps {
   className?: string;
@@ -34,7 +34,7 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
-  const [showBarcodePreview, setShowBarcodePreview] = useState(false);
+
 
   // Get authentication headers
   const getAuthHeaders = () => {
@@ -46,7 +46,7 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
   };
 
   // Fetch products from API
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/products', {
@@ -63,11 +63,11 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
 
   // Filter and search products
   const filteredProducts = products.filter(product => {
@@ -94,8 +94,9 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
       await fetchProducts(); // Refresh the list
       setShowDeleteModal(false);
       setSelectedProduct(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete product');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to delete product');
+      console.error('Error deleting product:', error);
     }
   };
 
@@ -135,8 +136,9 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
         newWindow.document.close();
         setTimeout(() => newWindow.print(), 500);
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to generate barcode print sheet');
+      console.error('Error generating barcodes:', error);
     }
   };
 
@@ -303,9 +305,11 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
                         <div className="flex items-center space-x-3">
                           <div className="flex-shrink-0">
                             {product.images && product.images.length > 0 ? (
-                              <img
+                              <Image
                                 src={product.images[0]}
                                 alt={product.name}
+                                width={48}
+                                height={48}
                                 className="h-12 w-12 rounded-lg object-cover border border-slate-600"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
@@ -534,7 +538,7 @@ function ProductModal({ isOpen, onClose, onSuccess, product }: ProductModalProps
         ...(result.title && { aiGeneratedTitle: result.title }),
         ...(result.description && { aiGeneratedDescription: result.description })
       }));
-    } catch (err) {
+    } catch {
       setError('Failed to generate AI content. Check your OpenAI API key.');
     } finally {
       setAiLoading(false);
@@ -1158,7 +1162,8 @@ function ProductDetailModal({ isOpen, onClose, product }: ProductDetailModalProp
                     {product.images && product.images.length > 1 && (
                       <button
                         onClick={handleBulkPhotoDownload}
-                        className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm transition-colors"
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+                        title="Download image as file"
                       >
                         Download All
                       </button>
@@ -1176,9 +1181,11 @@ function ProductDetailModal({ isOpen, onClose, product }: ProductDetailModalProp
                   <div className="grid grid-cols-2 gap-3">
                     {product.images.map((image, index) => (
                       <div key={index} className="relative group">
-                        <img
+                        <Image
                           src={image}
                           alt={`${product.name} ${index + 1}`}
+                          width={150}
+                          height={128}
                           className="w-full h-32 object-cover rounded-lg"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -1232,7 +1239,7 @@ function DeleteConfirmationModal({ isOpen, onClose, onConfirm, productName }: De
             <h3 className="text-xl font-bold text-white">Delete Product</h3>
           </div>
           <p className="text-slate-300 mb-6">
-            Are you sure you want to delete "<strong>{productName}</strong>"? This action cannot be undone.
+            Are you sure you want to delete &ldquo;<strong>{productName}</strong>&rdquo;? This action cannot be undone.
           </p>
           <div className="flex justify-end space-x-3">
             <button

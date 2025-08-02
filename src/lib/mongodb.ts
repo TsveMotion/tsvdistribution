@@ -1,6 +1,6 @@
 import { MongoClient, Db } from 'mongodb';
 
-const uri = 'mongodb://localhost:27017';
+const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tsvdistribution';
 const options = {};
 
 let client: MongoClient;
@@ -9,7 +9,7 @@ let clientPromise: Promise<MongoClient>;
 if (process.env.NODE_ENV === 'development') {
   // In development mode, use a global variable so that the value
   // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  let globalWithMongo = global as typeof globalThis & {
+  const globalWithMongo = globalThis as typeof globalThis & {
     _mongoClientPromise?: Promise<MongoClient>;
   };
 
@@ -29,4 +29,8 @@ export default clientPromise;
 export async function getDatabase(): Promise<Db> {
   const client = await clientPromise;
   return client.db('tsvdistribution');
+}
+
+export async function getClient(): Promise<MongoClient> {
+  return await clientPromise;
 }

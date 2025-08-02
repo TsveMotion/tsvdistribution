@@ -12,8 +12,8 @@ import dynamic from 'next/dynamic';
 // Types for the dynamically imported libraries
 declare global {
   interface Window {
-    html2canvas: any;
-    jsPDF: any;
+    html2canvas: typeof import('html2canvas').default;
+    jsPDF: typeof import('jspdf');
   }
 }
 

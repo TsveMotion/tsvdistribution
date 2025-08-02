@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Product, Order } from '@/types/database';
+import { Product, Invoice as DbInvoice } from '@/types/database';
 import InvoiceViewer from './InvoiceViewer';
 
-interface Invoice {
+interface LocalInvoice {
   _id?: string;
   invoiceNumber: string;
   orderId?: string;
@@ -34,28 +34,34 @@ interface InvoiceItem {
 }
 
 const InvoiceManagement: React.FC = () => {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoices, setInvoices] = useState<LocalInvoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<LocalInvoice | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<LocalInvoice | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  // Form state
-  const [formData, setFormData] = useState<Partial<Invoice>>({
+  const [invoiceData, setInvoiceData] = useState<LocalInvoice>({
+    _id: '',
     invoiceNumber: '',
+    orderId: '',
     customerName: '',
     customerEmail: '',
     customerAddress: '',
     items: [],
+    subtotal: 0,
+    vatAmount: 0,
     vatRate: 20,
+    total: 0,
     status: 'draft',
-    issueDate: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    notes: ''
+    issueDate: '',
+    dueDate: '',
+    notes: '',
+    createdAt: '',
+    updatedAt: ''
   });
 
   useEffect(() => {
@@ -67,32 +73,30 @@ const InvoiceManagement: React.FC = () => {
     try {
       setLoading(true);
       // Mock data for now since API doesn't exist yet
-      const mockInvoices: Invoice[] = [
-        {
-          _id: '1',
-          invoiceNumber: 'INV-2024-001',
-          customerName: 'John Doe',
-          customerEmail: 'john@example.com',
-          customerAddress: '123 Main St, London',
-          items: [{
-            productId: '1',
-            productName: 'Sample Product',
-            sku: 'SP001',
-            quantity: 2,
-            unitPrice: 50,
-            total: 100
-          }],
-          subtotal: 100,
-          vatAmount: 20,
-          vatRate: 20,
-          total: 120,
-          status: 'sent',
-          issueDate: '2024-01-15',
-          dueDate: '2024-02-15',
-          notes: 'Payment due within 30 days'
-        }
-      ];
-      setInvoices(mockInvoices);
+      const newInvoice: LocalInvoice = {
+        _id: '1',
+        invoiceNumber: 'INV-2024-001',
+        customerName: 'John Doe',
+        customerEmail: 'john@example.com',
+        customerAddress: '123 Main St, London',
+        items: [{
+          productId: '1',
+          productName: 'Sample Product',
+          sku: 'SP001',
+          quantity: 2,
+          unitPrice: 50,
+          total: 100
+        }],
+        subtotal: 100,
+        vatAmount: 20,
+        vatRate: 20,
+        total: 120,
+        status: 'sent',
+        issueDate: '2024-01-15',
+        dueDate: '2024-02-15',
+        notes: 'Payment due within 30 days'
+      };
+      setInvoices([newInvoice]);
     } catch (error) {
       setError('Failed to fetch invoices');
       console.error('Error fetching invoices:', error);
@@ -109,8 +113,8 @@ const InvoiceManagement: React.FC = () => {
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setProducts(data);
+        const productData: Product[] = await response.json();
+        setProducts(productData);
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -126,7 +130,7 @@ const InvoiceManagement: React.FC = () => {
   };
 
   const calculateTotals = (items: InvoiceItem[], vatRate: number) => {
-    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+    const subtotal = items.reduce((sum: number, item: InvoiceItem) => sum + item.total, 0);
     const vatAmount = (subtotal * vatRate) / 100;
     const total = subtotal + vatAmount;
     return { subtotal, vatAmount, total };
@@ -142,30 +146,25 @@ const InvoiceManagement: React.FC = () => {
       total: 0
     };
     
-    setFormData(prev => ({
+    setInvoiceData(prev => ({
       ...prev,
       items: [...(prev.items || []), newItem]
     }));
   };
 
-  const updateInvoiceItem = (index: number, field: keyof InvoiceItem, value: any) => {
-    setFormData(prev => {
+  const updateInvoiceItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
+    setInvoiceData((prev: LocalInvoice) => {
       const items = [...(prev.items || [])];
       items[index] = { ...items[index], [field]: value };
       
-      if (field === 'productId' && value) {
-        const product = products.find(p => p._id === value);
-        if (product) {
-          items[index].productName = product.name;
-          items[index].sku = product.sku;
-          items[index].unitPrice = product.price || 0;
-        }
-      }
-      
+      // Recalculate total for this item
       if (field === 'quantity' || field === 'unitPrice') {
-        items[index].total = items[index].quantity * items[index].unitPrice;
+        const quantity = field === 'quantity' ? Number(value) : items[index].quantity;
+        const unitPrice = field === 'unitPrice' ? Number(value) : items[index].unitPrice;
+        items[index].total = quantity * unitPrice;
       }
       
+      // Recalculate invoice totals
       const { subtotal, vatAmount, total } = calculateTotals(items, prev.vatRate || 20);
       
       return {
@@ -179,7 +178,7 @@ const InvoiceManagement: React.FC = () => {
   };
 
   const removeInvoiceItem = (index: number) => {
-    setFormData(prev => {
+    setInvoiceData(prev => {
       const items = (prev.items || []).filter((_, i) => i !== index);
       const { subtotal, vatAmount, total } = calculateTotals(items, prev.vatRate || 20);
       
@@ -195,7 +194,7 @@ const InvoiceManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.customerName || !formData.items?.length) {
+    if (!invoiceData.customerName || !invoiceData.items?.length) {
       setError('Please fill in all required fields and add at least one item');
       return;
     }
@@ -203,20 +202,18 @@ const InvoiceManagement: React.FC = () => {
     try {
       setLoading(true);
       
-      const invoiceData = {
-        ...formData,
-        invoiceNumber: formData.invoiceNumber || generateInvoiceNumber(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      const invoiceDataCopy = { ...invoiceData };
+      invoiceDataCopy.invoiceNumber = invoiceDataCopy.invoiceNumber || generateInvoiceNumber();
+      invoiceDataCopy.createdAt = new Date().toISOString();
+      invoiceDataCopy.updatedAt = new Date().toISOString();
 
       // For now, just add to local state (replace with API call later)
       if (selectedInvoice) {
         setInvoices(prev => prev.map(inv => 
-          inv._id === selectedInvoice._id ? { ...invoiceData, _id: selectedInvoice._id } as Invoice : inv
+          inv._id === selectedInvoice._id ? { ...invoiceDataCopy, _id: selectedInvoice._id } as LocalInvoice : inv
         ));
       } else {
-        const newInvoice = { ...invoiceData, _id: Date.now().toString() } as Invoice;
+        const newInvoice = { ...invoiceDataCopy, _id: Date.now().toString() } as LocalInvoice;
         setInvoices(prev => [...prev, newInvoice]);
       }
 
@@ -231,9 +228,9 @@ const InvoiceManagement: React.FC = () => {
     }
   };
 
-  const handleEdit = (invoice: Invoice) => {
+  const handleEdit = (invoice: LocalInvoice) => {
     setSelectedInvoice(invoice);
-    setFormData(invoice);
+    setInvoiceData(invoice);
     setShowCreateModal(true);
   };
 
@@ -243,17 +240,24 @@ const InvoiceManagement: React.FC = () => {
   };
 
   const resetForm = () => {
-    setFormData({
+    setInvoiceData({
+      _id: '',
       invoiceNumber: '',
+      orderId: '',
       customerName: '',
       customerEmail: '',
       customerAddress: '',
       items: [],
+      subtotal: 0,
+      vatAmount: 0,
       vatRate: 20,
+      total: 0,
       status: 'draft',
-      issueDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      notes: ''
+      issueDate: '',
+      dueDate: '',
+      notes: '',
+      createdAt: '',
+      updatedAt: ''
     });
   };
 
@@ -420,8 +424,8 @@ const InvoiceManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-300 mb-2">Invoice Number</label>
                   <input
                     type="text"
-                    value={formData.invoiceNumber || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, invoiceNumber: e.target.value }))}
+                    value={invoiceData.invoiceNumber || ''}
+                    onChange={(e) => setInvoiceData(prev => ({ ...prev, invoiceNumber: e.target.value }))}
                     placeholder="Auto-generated if empty"
                     className="w-full bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
@@ -429,8 +433,8 @@ const InvoiceManagement: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Status</label>
                   <select
-                    value={formData.status}
-                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
+                    value={invoiceData.status}
+                    onChange={(e) => setInvoiceData((prev: LocalInvoice) => ({ ...prev, status: e.target.value as LocalInvoice['status'] }))}
                     className="w-full bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   >
                     <option value="draft">Draft</option>
@@ -451,8 +455,8 @@ const InvoiceManagement: React.FC = () => {
                     <input
                       type="text"
                       required
-                      value={formData.customerName || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
+                      value={invoiceData.customerName || ''}
+                      onChange={(e) => setInvoiceData(prev => ({ ...prev, customerName: e.target.value }))}
                       className="w-full bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
@@ -460,8 +464,8 @@ const InvoiceManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-slate-300 mb-2">Customer Email</label>
                     <input
                       type="email"
-                      value={formData.customerEmail || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, customerEmail: e.target.value }))}
+                      value={invoiceData.customerEmail || ''}
+                      onChange={(e) => setInvoiceData(prev => ({ ...prev, customerEmail: e.target.value }))}
                       className="w-full bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
@@ -469,8 +473,8 @@ const InvoiceManagement: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Customer Address</label>
                   <textarea
-                    value={formData.customerAddress || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, customerAddress: e.target.value }))}
+                    value={invoiceData.customerAddress || ''}
+                    onChange={(e) => setInvoiceData(prev => ({ ...prev, customerAddress: e.target.value }))}
                     rows={3}
                     className="w-full bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
@@ -490,7 +494,7 @@ const InvoiceManagement: React.FC = () => {
                   </button>
                 </div>
                 
-                {formData.items?.map((item, index) => (
+                {invoiceData.items.map((item: InvoiceItem, index: number) => (
                   <div key={index} className="bg-slate-700/30 rounded-xl p-4">
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                       <div>
@@ -553,20 +557,20 @@ const InvoiceManagement: React.FC = () => {
               </div>
 
               {/* Totals */}
-              {formData.items && formData.items.length > 0 && (
+              {invoiceData.items && invoiceData.items.length > 0 && (
                 <div className="bg-slate-700/30 rounded-xl p-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-slate-300">
                       <span>Subtotal:</span>
-                      <span>£{(formData.subtotal || 0).toFixed(2)}</span>
+                      <span>£{(invoiceData.subtotal || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-slate-300">
-                      <span>VAT ({formData.vatRate}%):</span>
-                      <span>£{(formData.vatAmount || 0).toFixed(2)}</span>
+                      <span>VAT ({invoiceData.vatRate}%):</span>
+                      <span>£{(invoiceData.vatAmount || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-xl font-bold text-white border-t border-slate-600 pt-2">
                       <span>Total:</span>
-                      <span>£{(formData.total || 0).toFixed(2)}</span>
+                      <span>£{(invoiceData.total || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

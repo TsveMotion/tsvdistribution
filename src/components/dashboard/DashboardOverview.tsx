@@ -112,7 +112,7 @@ const RecentActivity = ({ activity }: { activity: StockMovement }) => {
 };
 
 const DashboardOverview: React.FC = () => {
-  const { user } = useAuth();
+  const { } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
