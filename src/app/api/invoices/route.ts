@@ -90,17 +90,23 @@ export async function POST(request: NextRequest) {
       total: item.total
     }));
 
-    // Create new invoice
+    // Create new invoice with all required fields
     const newInvoice: Invoice = {
       invoiceNumber,
       orderId: new ObjectId(orderId),
       customerName: order.customerName,
-      customerAddress: order.customerAddress,
+      customerEmail: order.customerEmail,
+      customerAddress: typeof order.customerAddress === 'string' 
+        ? order.customerAddress 
+        : `${order.customerAddress.street}, ${order.customerAddress.city}, ${order.customerAddress.state} ${order.customerAddress.zipCode}, ${order.customerAddress.country}`,
       items: invoiceItems,
       subtotal: order.subtotal,
-      tax: order.tax,
+      vatAmount: order.tax, // Map tax to vatAmount for VAT display
+      vatRate: order.tax > 0 ? 20 : undefined, // Default VAT rate if tax exists
+      tax: order.tax, // Keep for backward compatibility
       total: order.total,
       status: 'draft',
+      issueDate: new Date(), // Add issue date
       dueDate,
       createdAt: new Date(),
       updatedAt: new Date()

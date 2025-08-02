@@ -1,35 +1,32 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { useReactToPrint } from 'react-to-print';
+import InvoicePrintStyles from './InvoicePrintStyles';
+import { InvoiceItem } from '@/types/database';
 
 interface Invoice {
   _id?: string;
   invoiceNumber: string;
   orderId?: string;
   customerName: string;
-  customerEmail: string;
+  customerEmail?: string;
   customerAddress: string;
   items: InvoiceItem[];
   subtotal: number;
-  vatAmount: number;
-  vatRate: number;
+  vatAmount?: number;  // Make VAT optional
+  vatRate?: number;    // Make VAT rate optional
+  tax?: number;        // Keep for backward compatibility
   total: number;
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
-  issueDate: string;
-  dueDate: string;
+  issueDate?: string | Date;
+  dueDate: string | Date;
   notes?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
 
-interface InvoiceItem {
-  productId: string;
-  productName: string;
-  sku: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
+// Using InvoiceItem from @/types/database
 
 interface InvoiceViewerProps {
   invoice: Invoice;
@@ -37,14 +34,43 @@ interface InvoiceViewerProps {
 }
 
 const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
-  const handlePrint = () => {
-    window.print();
+  const printComponentRef = useRef<HTMLDivElement>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printCount, setPrintCount] = useState(0);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printComponentRef,
+    documentTitle: `Invoice-${invoice.invoiceNumber}`,
+    onAfterPrint: () => {
+      setIsPrinting(false);
+      setPrintCount(prev => prev + 1);
+    }
+  });
+
+  const onPrintClick = () => {
+    if (isPrinting) return; // Prevent multiple print calls
+    setIsPrinting(true);
+    handlePrint();
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
+  const formatDate = (date?: Date | string) => {
+    if (!date) return 'Not specified';
+    
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid Date';
+    }
+    
+    return dateObj.toLocaleDateString('en-GB', {
       day: '2-digit',
-      month: '2-digit',
+      month: 'short',
       year: 'numeric'
     });
   };
@@ -61,17 +87,41 @@ const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-4xl max-h-[95vh] overflow-hidden rounded-2xl shadow-2xl">
+    <>
+      <InvoicePrintStyles />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white w-full max-w-4xl max-h-[95vh] overflow-hidden rounded-2xl shadow-2xl invoice-container">
         {/* Header Controls */}
-        <div className="bg-slate-800 text-white p-4 flex justify-between items-center print:hidden">
-          <h3 className="text-lg font-semibold">Invoice Preview</h3>
+        <div className="bg-slate-800 text-white p-4 flex justify-between items-center no-print">
+          <div>
+            <h3 className="text-lg font-semibold">Invoice Preview</h3>
+            {printCount > 0 && (
+              <p className="text-xs text-cyan-400 mt-1">
+                Printed {printCount} time{printCount !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
           <div className="flex space-x-3">
             <button
-              onClick={handlePrint}
-              className="bg-cyan-500 text-white px-4 py-2 rounded-lg hover:bg-cyan-600 transition-colors"
+              onClick={onPrintClick}
+              disabled={isPrinting}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 ${
+                isPrinting
+                  ? 'bg-slate-600 cursor-not-allowed'
+                  : 'bg-cyan-500 hover:bg-cyan-600'
+              } text-white`}
             >
-              🖨️ Print
+              {isPrinting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  <span>Printing...</span>
+                </>
+              ) : (
+                <>
+                  <span>🖨️</span>
+                  <span>Print Invoice</span>
+                </>
+              )}
             </button>
             <button
               onClick={onClose}
@@ -82,8 +132,16 @@ const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
           </div>
         </div>
 
-        {/* Invoice Content - Exactly 1 Page */}
-        <div className="bg-white p-4 w-full overflow-hidden text-black print:p-4 print:m-0 print:h-screen print:max-h-screen print:shadow-none" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', minHeight: '100vh', maxHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Invoice Content - Optimized for Print */}
+        <div 
+          ref={printComponentRef}
+          className="bg-white p-6 w-full text-black overflow-auto" 
+          style={{ 
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            maxHeight: 'calc(100vh - 100px)',
+            minHeight: '800px'
+          }}
+        >
           {/* Company Header */}
           <div className="border-b-2 border-slate-800 pb-3 mb-3">
             <div className="flex justify-between items-start">
@@ -134,11 +192,11 @@ const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
               <tbody>
                 {invoice.items.map((item, index) => (
                   <tr key={index} className="border-b border-slate-200">
-                    <td className="p-2 text-slate-800">{item.productName}</td>
-                    <td className="p-2 text-slate-600 font-mono">{item.sku}</td>
-                    <td className="p-2 text-center text-slate-800">{item.quantity}</td>
-                    <td className="p-2 text-right text-slate-800">£{item.unitPrice.toFixed(2)}</td>
-                    <td className="p-2 text-right font-semibold text-slate-800">£{item.total.toFixed(2)}</td>
+                    <td className="p-2 text-slate-800">{item.productName || 'No description'}</td>
+                    <td className="p-2 text-slate-600 font-mono">{item.sku || 'N/A'}</td>
+                    <td className="p-2 text-center text-slate-800">{item.quantity || 0}</td>
+                    <td className="p-2 text-right text-slate-800">£{(item.price || 0).toFixed(2)}</td>
+                    <td className="p-2 text-right font-semibold text-slate-800">£{(item.total || 0).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -152,16 +210,24 @@ const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between text-slate-700">
                     <span>Subtotal:</span>
-                    <span>£{invoice.subtotal.toFixed(2)}</span>
+                    <span>£{(invoice.subtotal || 0).toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-slate-700">
-                    <span>VAT ({invoice.vatRate}%):</span>
-                    <span>£{invoice.vatAmount.toFixed(2)}</span>
-                  </div>
+                  {(invoice.vatAmount !== undefined && invoice.vatAmount > 0) && (
+                    <div className="flex justify-between text-slate-700">
+                      <span>VAT ({invoice.vatRate || 0}%):</span>
+                      <span>£{(invoice.vatAmount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(invoice.tax !== undefined && invoice.tax > 0) && (
+                    <div className="flex justify-between text-slate-700">
+                      <span>Tax:</span>
+                      <span>£{(invoice.tax || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="border-t border-slate-300 pt-1 mt-1">
                     <div className="flex justify-between text-sm font-bold text-slate-800">
                       <span>Total:</span>
-                      <span>£{invoice.total.toFixed(2)}</span>
+                      <span>£{(invoice.total || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -186,8 +252,9 @@ const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

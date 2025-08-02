@@ -109,9 +109,10 @@ export interface StockMovement {
 export interface Invoice {
   _id?: ObjectId;
   invoiceNumber: string;
-  orderId: ObjectId;
+  orderId?: ObjectId;
   customerName: string;
-  customerAddress: {
+  customerEmail?: string;
+  customerAddress: string | {
     street: string;
     city: string;
     state: string;
@@ -120,11 +121,15 @@ export interface Invoice {
   };
   items: InvoiceItem[];
   subtotal: number;
-  tax: number;
+  vatAmount?: number;  // Make VAT optional
+  vatRate?: number;    // Make VAT rate optional
+  tax?: number;        // Keep for backward compatibility
   total: number;
-  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  issueDate?: Date;
   dueDate: Date;
   paidDate?: Date;
+  notes?: string;
   createdAt: Date;
   updatedAt: Date;
 }

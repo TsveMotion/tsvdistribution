@@ -41,8 +41,17 @@ export function generateInvoiceHTML(invoice: Invoice): string {
   };
 
   // Format dates
-  const createdDate = formatDate(invoice.createdAt);
-  const dueDate = formatDate(invoice.dueDate);
+  const invoiceDate = invoice.issueDate ? formatDate(invoice.issueDate) : formatDate(new Date());
+  const createdDate = formatDate(invoiceDate);
+  const dueDate = invoice.dueDate ? formatDate(invoice.dueDate) : formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+
+  // Format customer address based on type
+  const customerAddressHtml = typeof invoice.customerAddress === 'string' 
+    ? `<div>${invoice.customerAddress}</div>`
+    : `<div>${invoice.customerAddress.street}</div>
+       <div>${invoice.customerAddress.city}, ${invoice.customerAddress.zipCode}</div>
+       <div>${invoice.customerAddress.state}</div>
+       <div>${invoice.customerAddress.country}</div>`;
 
   // Generate items HTML
   const itemsHTML = invoice.items.map(item => `
@@ -172,10 +181,7 @@ export function generateInvoiceHTML(invoice: Invoice): string {
           <div class="client-info">
             <div><strong>Bill To:</strong></div>
             <div>${invoice.customerName}</div>
-            <div>${invoice.customerAddress.street}</div>
-            <div>${invoice.customerAddress.city}, ${invoice.customerAddress.zipCode}</div>
-            <div>${invoice.customerAddress.state}</div>
-            <div>${invoice.customerAddress.country}</div>
+            ${customerAddressHtml}
           </div>
           
           <div class="invoice-info">
@@ -203,9 +209,9 @@ export function generateInvoiceHTML(invoice: Invoice): string {
         </table>
         
         <div class="totals">
-          <div><strong>Subtotal:</strong> ${formatCurrency(invoice.subtotal)}</div>
-          <div><strong>VAT (20%):</strong> ${formatCurrency(invoice.tax)}</div>
-          <div class="total"><strong>Total:</strong> ${formatCurrency(invoice.total)}</div>
+          <div><strong>Subtotal:</strong> ${formatCurrency(invoice.subtotal || 0)}</div>
+          <div><strong>VAT (20%):</strong> ${formatCurrency(invoice.tax || 0)}</div>
+          <div class="total"><strong>Total:</strong> ${formatCurrency(invoice.total || 0)}</div>
         </div>
         
         <div class="notes">

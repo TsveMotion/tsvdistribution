@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Product, Invoice as DbInvoice } from '@/types/database';
+import { Product, Invoice as DbInvoice, InvoiceItem } from '@/types/database';
 import InvoiceViewer from './InvoiceViewer';
 
 interface LocalInvoice {
@@ -24,14 +24,7 @@ interface LocalInvoice {
   updatedAt?: string;
 }
 
-interface InvoiceItem {
-  productId: string;
-  productName: string;
-  sku: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
+// Using InvoiceItem from @/types/database
 
 const InvoiceManagement: React.FC = () => {
   const [invoices, setInvoices] = useState<LocalInvoice[]>([]);
@@ -72,31 +65,55 @@ const InvoiceManagement: React.FC = () => {
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      // Mock data for now since API doesn't exist yet
-      const newInvoice: LocalInvoice = {
-        _id: '1',
-        invoiceNumber: 'INV-2024-001',
-        customerName: 'John Doe',
-        customerEmail: 'john@example.com',
-        customerAddress: '123 Main St, London',
-        items: [{
-          productId: '1',
-          productName: 'Sample Product',
-          sku: 'SP001',
-          quantity: 2,
-          unitPrice: 50,
-          total: 100
-        }],
-        subtotal: 100,
-        vatAmount: 20,
-        vatRate: 20,
-        total: 120,
-        status: 'sent',
-        issueDate: '2024-01-15',
-        dueDate: '2024-02-15',
-        notes: 'Payment due within 30 days'
-      };
-      setInvoices([newInvoice]);
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/invoices', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch invoices');
+      }
+      
+      const data = await response.json();
+      
+      // Debug: Log the actual data structure
+      console.log('Invoice data from API:', data);
+      if (data.length > 0) {
+        console.log('First invoice items:', data[0].items);
+      }
+      
+      // If no real data, create a test invoice with correct structure
+      if (!data || data.length === 0) {
+        const testInvoice: LocalInvoice = {
+          _id: 'test-1',
+          invoiceNumber: 'INV-2025-TEST',
+          customerName: 'Test Customer',
+          customerEmail: 'test@example.com',
+          customerAddress: '123 Test Street, Test City',
+          items: [{
+            productName: 'Test Product',
+            sku: 'TEST-001',
+            quantity: 1,
+            price: 7.00,
+            total: 7.00
+          }],
+          subtotal: 7.00,
+          vatAmount: 1.40,
+          vatRate: 20,
+          total: 8.40,
+          status: 'draft',
+          issueDate: new Date().toISOString(),
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          notes: 'Test invoice with correct data structure'
+        };
+        console.log('Created test invoice data:', testInvoice);
+        setInvoices([testInvoice]);
+      } else {
+        setInvoices(data);
+      }
     } catch (error) {
       setError('Failed to fetch invoices');
       console.error('Error fetching invoices:', error);
@@ -138,11 +155,10 @@ const InvoiceManagement: React.FC = () => {
 
   const addInvoiceItem = () => {
     const newItem: InvoiceItem = {
-      productId: '',
       productName: '',
       sku: '',
       quantity: 1,
-      unitPrice: 0,
+      price: 0,
       total: 0
     };
     
@@ -158,10 +174,10 @@ const InvoiceManagement: React.FC = () => {
       items[index] = { ...items[index], [field]: value };
       
       // Recalculate total for this item
-      if (field === 'quantity' || field === 'unitPrice') {
+      if (field === 'quantity' || field === 'price') {
         const quantity = field === 'quantity' ? Number(value) : items[index].quantity;
-        const unitPrice = field === 'unitPrice' ? Number(value) : items[index].unitPrice;
-        items[index].total = quantity * unitPrice;
+        const price = field === 'price' ? Number(value) : items[index].price;
+        items[index].total = quantity * price;
       }
       
       // Recalculate invoice totals
@@ -500,8 +516,15 @@ const InvoiceManagement: React.FC = () => {
                       <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">Product</label>
                         <select
-                          value={item.productId}
-                          onChange={(e) => updateInvoiceItem(index, 'productId', e.target.value)}
+                          value={item.productName}
+                          onChange={(e) => {
+                            const selectedProduct = products.find(p => p._id?.toString() === e.target.value);
+                            if (selectedProduct) {
+                              updateInvoiceItem(index, 'productName', selectedProduct.name);
+                              updateInvoiceItem(index, 'sku', selectedProduct.sku);
+                              updateInvoiceItem(index, 'price', selectedProduct.price || 0);
+                            }
+                          }}
                           className="w-full bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         >
                           <option value="">Select product...</option>
@@ -528,8 +551,8 @@ const InvoiceManagement: React.FC = () => {
                           type="number"
                           step="0.01"
                           min="0"
-                          value={item.unitPrice}
-                          onChange={(e) => updateInvoiceItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                          value={item.price}
+                          onChange={(e) => updateInvoiceItem(index, 'price', parseFloat(e.target.value) || 0)}
                           className="w-full bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         />
                       </div>
