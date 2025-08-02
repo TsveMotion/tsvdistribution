@@ -6,7 +6,8 @@ import { User } from '@/types/database';
 // Google OAuth login endpoint
 export async function POST(request: NextRequest) {
   try {
-    const { googleId, email, name, action } = await request.json();
+    const body = await request.json();
+    const { googleId, email, name, action, userId } = body;
 
     if (!googleId || !email || !name) {
       return NextResponse.json(
@@ -53,7 +54,6 @@ export async function POST(request: NextRequest) {
 
     if (action === 'link') {
       // Link Google account to existing user
-      const { userId } = await request.json();
       
       if (!userId) {
         return NextResponse.json(

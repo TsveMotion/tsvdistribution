@@ -85,7 +85,7 @@ export class GoogleOAuth {
             };
             
             resolve(googleUser);
-          } catch (error) {
+          } catch (_error) {
             reject(new Error('Failed to parse Google OAuth response'));
           }
         },
@@ -130,8 +130,7 @@ export class GoogleOAuth {
 
     window.google.accounts.id.renderButton(element, {
       theme: 'outline',
-      size: 'large',
-      width: '100%'
+      size: 'large'
     });
   }
 }

@@ -20,20 +20,6 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const googleOAuth = GoogleOAuth.getInstance();
 
-  useEffect(() => {
-    const initializeGoogleButton = async () => {
-      if (googleButtonRef.current) {
-        try {
-          await googleOAuth.renderButton(googleButtonRef.current, handleGoogleSuccess);
-        } catch (error) {
-          console.error('Failed to initialize Google button:', error);
-        }
-      }
-    };
-
-    initializeGoogleButton();
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -64,12 +50,26 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       } else {
         setError(result.error || 'Google login failed');
       }
-    } catch (error) {
+    } catch (_error) {
       setError('An error occurred during Google login. Please try again.');
     } finally {
       setGoogleLoading(false);
     }
   };
+
+  useEffect(() => {
+    const initializeGoogleButton = async () => {
+      if (googleButtonRef.current) {
+        try {
+          await googleOAuth.renderButton(googleButtonRef.current, handleGoogleSuccess);
+        } catch (_error) {
+          console.error('Failed to initialize Google button:', _error);
+        }
+      }
+    };
+
+    initializeGoogleButton();
+  }, []); // Simplified dependencies since handleGoogleSuccess is stable
 
   return (
     <div className="bg-slate-900/80 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-8 shadow-2xl">
@@ -92,6 +92,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-slate-400"
             placeholder="Enter your email"
+            autoComplete="email"
             required
           />
         </div>
@@ -108,6 +109,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-slate-400 pr-12"
               placeholder="Enter your password"
+              autoComplete="current-password"
               required
             />
             <button

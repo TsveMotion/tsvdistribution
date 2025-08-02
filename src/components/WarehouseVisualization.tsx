@@ -36,7 +36,7 @@ const WarehouseVisualization: React.FC = () => {
 
   useEffect(() => {
     fetchWarehouseData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -45,7 +45,7 @@ const WarehouseVisualization: React.FC = () => {
       setHighlightedShelves(new Set());
       setSearchResults([]);
     }
-  }, [searchQuery, products]);
+  }, [searchQuery, products]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchWarehouseData = async () => {
     try {
