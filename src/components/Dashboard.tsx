@@ -7,6 +7,7 @@ import OrderTracking from './OrderTracking';
 import WarehouseVisualization from './WarehouseVisualization';
 import InvoiceManagement from './InvoiceManagement';
 import UserManagement from './UserManagement';
+import Settings from './Settings';
 import { Product, Order } from '@/types/database';
 import {
   CubeIcon,
@@ -107,7 +108,7 @@ export default function Dashboard() {
           {activeTab === 'locations' && <LocationsTab />}
           {activeTab === 'invoices' && <InvoicesTab />}
           {activeTab === 'users' && user?.email === 'kristiyan@tsvstock.com' && <UsersTab />}
-          {activeTab === 'settings' && <SettingsTab />}
+          {activeTab === 'settings' && <Settings />}
         </main>
       </div>
     </div>
@@ -474,15 +475,4 @@ function UsersTab() {
   return <UserManagement />;
 }
 
-function SettingsTab() {
-  return (
-    <div>
-      <h2 className="text-3xl font-bold mb-8 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-        Settings
-      </h2>
-      <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8">
-        <p className="text-slate-400 text-center">Settings will be implemented here</p>
-      </div>
-    </div>
-  );
-}
+

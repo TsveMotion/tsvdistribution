@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Product, Invoice as DbInvoice, InvoiceItem } from '@/types/database';
+import { Product, InvoiceItem } from '@/types/database';
 import InvoiceViewer from './InvoiceViewer';
 
 interface LocalInvoice {
@@ -34,7 +34,7 @@ const InvoiceManagement: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<LocalInvoice | null>(null);
-  const [editingInvoice, setEditingInvoice] = useState<LocalInvoice | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [invoiceData, setInvoiceData] = useState<LocalInvoice>({

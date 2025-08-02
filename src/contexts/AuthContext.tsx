@@ -12,6 +12,7 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogle: (googleId: string, email: string, name: string) => Promise<{success: boolean; error?: string}>;
   register: (name: string, email: string, password: string, role?: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
@@ -66,6 +67,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (googleId: string, email: string, name: string): Promise<{success: boolean; error?: string}> => {
+    try {
+      const response = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ googleId, email, name, action: 'login' }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true };
+      } else {
+        return { success: false, error: data.error };
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
+      return { success: false, error: 'An error occurred during Google login. Please try again.' };
+    }
+  };
+
   const register = async (name: string, email: string, password: string, role: string = 'employee'): Promise<boolean> => {
     try {
       const response = await fetch('/api/auth/register', {
@@ -102,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     user,
     login,
+    loginWithGoogle,
     register,
     logout,
     loading,

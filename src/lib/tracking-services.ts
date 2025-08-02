@@ -7,7 +7,7 @@
 
 import { TrackingUpdate } from '@/types/database';
 import { ObjectId } from 'mongodb';
-import { Ship24Service, Ship24TrackerData } from './ship24';
+import { Ship24Service } from './ship24';
 
 // Base interface for tracking responses
 interface TrackingResponse {

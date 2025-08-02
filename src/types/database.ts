@@ -7,6 +7,8 @@ export interface User {
   name: string;
   role: 'admin' | 'staff' | 'employee';
   active: boolean;
+  googleId?: string;
+  googleEmail?: string;
   createdAt: Date;
   updatedAt: Date;
 }

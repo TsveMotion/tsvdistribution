@@ -1,6 +1,5 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User } from '@/types/database';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -24,7 +23,7 @@ export function verifyToken(token: string): { userId: string; email: string; rol
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; role: string };
     return decoded;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }

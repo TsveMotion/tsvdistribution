@@ -7,7 +7,6 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
 // Dynamic imports to avoid SSR issues
-import dynamic from 'next/dynamic';
 
 // Types for the dynamically imported libraries
 declare global {
