@@ -6,6 +6,7 @@ import InventoryManagement from './InventoryManagement';
 import OrderTracking from './OrderTracking';
 import WarehouseVisualization from './WarehouseVisualization';
 import InvoiceManagement from './InvoiceManagement';
+import UserManagement from './UserManagement';
 import { Product, Order } from '@/types/database';
 import {
   CubeIcon,
@@ -18,9 +19,10 @@ import {
   ExclamationTriangleIcon,
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
 
-type TabType = 'overview' | 'inventory' | 'orders' | 'locations' | 'invoices' | 'settings';
+type TabType = 'overview' | 'inventory' | 'orders' | 'locations' | 'invoices' | 'users' | 'settings';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -32,6 +34,8 @@ export default function Dashboard() {
     { id: 'orders' as TabType, name: 'Orders', icon: ClipboardDocumentListIcon },
     { id: 'locations' as TabType, name: 'Locations', icon: BuildingStorefrontIcon },
     { id: 'invoices' as TabType, name: 'Invoices', icon: DocumentTextIcon },
+    // Only show Users tab to the specific admin user
+    ...(user?.email === 'kristiyan@tsvstock.com' ? [{ id: 'users' as TabType, name: 'Users', icon: UsersIcon }] : []),
     { id: 'settings' as TabType, name: 'Settings', icon: Cog6ToothIcon },
   ];
 
@@ -102,6 +106,7 @@ export default function Dashboard() {
           {activeTab === 'orders' && <OrdersTab />}
           {activeTab === 'locations' && <LocationsTab />}
           {activeTab === 'invoices' && <InvoicesTab />}
+          {activeTab === 'users' && user?.email === 'kristiyan@tsvstock.com' && <UsersTab />}
           {activeTab === 'settings' && <SettingsTab />}
         </main>
       </div>
@@ -463,6 +468,10 @@ function LocationsTab() {
 
 function InvoicesTab() {
   return <InvoiceManagement />;
+}
+
+function UsersTab() {
+  return <UserManagement />;
 }
 
 function SettingsTab() {

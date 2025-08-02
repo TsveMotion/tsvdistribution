@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     // Check for hardcoded admin user (invite-only system)
     if (email === 'Kristiyan@TsvDistributions.com' && password === 'Krisi2201') {
-      const token = generateToken('admin-001', email);
+      const token = generateToken('admin-001', email, 'admin');
       
       return NextResponse.json({
         message: 'Login successful',
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const token = generateToken(user._id!.toString(), user.email);
+    const token = generateToken(user._id!.toString(), user.email, user.role);
 
     return NextResponse.json({
       message: 'Login successful',

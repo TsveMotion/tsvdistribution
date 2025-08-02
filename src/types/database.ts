@@ -6,6 +6,7 @@ export interface User {
   password: string;
   name: string;
   role: 'admin' | 'staff' | 'employee';
+  active: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
