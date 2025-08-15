@@ -85,7 +85,8 @@ export class GoogleOAuth {
             };
             
             resolve(googleUser);
-          } catch (_error) {
+          } catch (error) {
+            console.error('Failed to parse Google OAuth response:', error);
             reject(new Error('Failed to parse Google OAuth response'));
           }
         },

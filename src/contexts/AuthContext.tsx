@@ -32,7 +32,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (token && userData) {
       try {
         setUser(JSON.parse(userData));
-      } catch (_error) {
+      } catch (error) {
+        console.error('Error parsing user data:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }

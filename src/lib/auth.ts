@@ -23,7 +23,12 @@ export function verifyToken(token: string): { userId: string; email: string; rol
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; role: string };
     return decoded;
-  } catch (_error) {
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      console.log('Token expired - user needs to log in again');
+    } else {
+      console.error('Token verification failed:', error);
+    }
     return null;
   }
 }

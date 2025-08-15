@@ -50,7 +50,8 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       } else {
         setError(result.error || 'Google login failed');
       }
-    } catch (_error) {
+    } catch (error) {
+      console.error('Google login error:', error);
       setError('An error occurred during Google login. Please try again.');
     } finally {
       setGoogleLoading(false);
@@ -62,14 +63,14 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       if (googleButtonRef.current) {
         try {
           await googleOAuth.renderButton(googleButtonRef.current, handleGoogleSuccess);
-        } catch (_error) {
-          console.error('Failed to initialize Google button:', _error);
+        } catch (error) {
+          console.error('Failed to initialize Google button:', error);
         }
       }
     };
 
     initializeGoogleButton();
-  }, []); // Simplified dependencies since handleGoogleSuccess is stable
+  }, [googleOAuth, handleGoogleSuccess]);
 
   return (
     <div className="bg-slate-900/80 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-8 shadow-2xl">

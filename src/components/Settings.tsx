@@ -192,7 +192,8 @@ export default function Settings() {
       } else {
         setPasswordError(data.error || 'Failed to change password');
       }
-    } catch (_error) {
+    } catch (error) {
+      console.error('Password change error:', error);
       setPasswordError('An error occurred while changing your password');
     } finally {
       setPasswordChanging(false);

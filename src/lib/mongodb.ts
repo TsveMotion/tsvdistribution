@@ -1,7 +1,12 @@
 import { MongoClient, Db } from 'mongodb';
 
 const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tsvdistribution';
-const options = {};
+const options = {
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 30000,
+};
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
