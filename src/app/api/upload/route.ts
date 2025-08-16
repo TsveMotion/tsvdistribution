@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { verifyToken } from '@/lib/auth';
+import { GridFSBucket } from 'mongodb';
+import { Readable } from 'stream';
+import { getClient } from '@/lib/mongodb';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,11 +26,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No files uploaded' }, { status: 400 });
     }
 
-    const uploadedFiles = [];
+    const client = await getClient();
+    const db = client.db('tsvdistribution');
+    const bucket = new GridFSBucket(db, { bucketName: 'uploads' });
 
-    // Ensure upload directory exists
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'products');
-    await mkdir(uploadDir, { recursive: true });
+    const uploadedFiles: string[] = [];
 
     for (const file of files) {
       // Validate file type
@@ -43,24 +46,33 @@ export async function POST(request: NextRequest) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      // Generate unique filename
-      const timestamp = Date.now();
-      const fileExtension = path.extname(file.name);
-      const fileName = `${timestamp}-${Math.random().toString(36).substring(2)}${fileExtension}`;
-      const filePath = path.join(uploadDir, fileName);
+      // Store in GridFS
+      const uploadStream = bucket.openUploadStream(file.name, {
+        contentType: (file as any).type || 'application/octet-stream',
+        metadata: {
+          originalName: file.name,
+          size: file.size,
+          uploadedAt: new Date(),
+          uploadedBy: decoded.userId,
+        },
+      });
 
-      // Write file
-      await writeFile(filePath, buffer);
+      await new Promise<void>((resolve, reject) => {
+        Readable.from(buffer)
+          .pipe(uploadStream)
+          .on('error', reject)
+          .on('finish', () => resolve());
+      });
 
-      // Return public URL
-      const publicUrl = `/uploads/products/${fileName}`;
+      const id = uploadStream.id?.toString();
+      if (!id) {
+        return NextResponse.json({ error: 'Failed to store file' }, { status: 500 });
+      }
+      const publicUrl = `/api/files/${id}`;
       uploadedFiles.push(publicUrl);
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      files: uploadedFiles 
-    });
+    return NextResponse.json({ success: true, files: uploadedFiles });
 
   } catch (error) {
     console.error('Upload error:', error);
@@ -69,3 +81,4 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
