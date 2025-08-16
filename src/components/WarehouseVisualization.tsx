@@ -27,6 +27,8 @@ const WarehouseVisualization: React.FC = () => {
   const [showAddItems, setShowAddItems] = useState(false);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<{productId: string, quantity: number}[]>([]);
+  const [actionMode, setActionMode] = useState<'add' | 'remove'>('add');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Initialize warehouse structure (3 rafts, 5 shelves each)
   const warehouseStructure = {
@@ -282,6 +284,16 @@ const WarehouseVisualization: React.FC = () => {
     setSelectedShelf(shelf);
     setShowAddItems(true);
     setSelectedProducts([]);
+    setActionMode('add');
+    setFormError(null);
+  };
+
+  const handleRemoveItemsClick = (shelf: ShelfData) => {
+    setSelectedShelf(shelf);
+    setShowAddItems(true);
+    setSelectedProducts([]);
+    setActionMode('remove');
+    setFormError(null);
   };
 
   const handleAddProduct = () => {
@@ -292,6 +304,7 @@ const WarehouseVisualization: React.FC = () => {
     const updated = [...selectedProducts];
     updated[index] = { ...updated[index], [field]: value };
     setSelectedProducts(updated);
+    setFormError(null);
   };
 
   const removeSelectedProduct = (index: number) => {
@@ -304,6 +317,18 @@ const WarehouseVisualization: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
+
+      // Helper to safely convert various ID shapes to string
+      const idToString = (id: any): string | null => {
+        try {
+          if (!id) return null;
+          if (typeof id === 'string') return id;
+          if (typeof id === 'object' && typeof id.toString === 'function') return id.toString();
+          return String(id);
+        } catch {
+          return null;
+        }
+      };
 
       // First, ensure we have a location for this shelf
       let shelfLocation = selectedShelf.location;
@@ -327,12 +352,48 @@ const WarehouseVisualization: React.FC = () => {
         });
 
         if (!locationResponse.ok) {
-          const errorData = await locationResponse.json();
-          throw new Error(`Failed to create location: ${errorData.message || 'Unknown error'}`);
+          // If conflict, try to resolve the existing location by code
+          if (locationResponse.status === 409) {
+            const code = `R${selectedShelf.raftId}S${selectedShelf.shelfId}`;
+            // Try to find in current state first
+            let existing = locations.find(l => l && l.code === code);
+            if (!existing) {
+              // Fallback: refetch locations
+              const refetch = await fetch('/api/locations', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+              if (refetch.ok) {
+                const list = await refetch.json();
+                existing = Array.isArray(list) ? list.find((l: any) => l && l.code === code) : undefined;
+              }
+            }
+            if (existing) {
+              shelfLocation = existing as any;
+            } else {
+              const errorData = await locationResponse.json().catch(() => ({}));
+              throw new Error(`Failed to create or find existing location (${code}): ${errorData.message || 'Conflict'}`);
+            }
+          } else {
+            const errorData = await locationResponse.json().catch(() => ({}));
+            throw new Error(`Failed to create location: ${errorData.message || 'Unknown error'}`);
+          }
+        } else {
+          shelfLocation = await locationResponse.json();
         }
-
-        shelfLocation = await locationResponse.json();
       }
+
+      // Helpers
+      const getAllocatedQuantity = (prod: any): number => {
+        try {
+          const locs = Array.isArray(prod?.locations) ? prod.locations : [];
+          return locs.reduce((sum: number, l: any) => sum + (typeof l?.quantity === 'number' ? l.quantity : 0), 0);
+        } catch {
+          return 0;
+        }
+      };
 
       // Update each product's location
       for (const item of selectedProducts) {
@@ -351,33 +412,59 @@ const WarehouseVisualization: React.FC = () => {
           
           const currentProduct = await getResponse.json();
           const existingLocations = currentProduct.locations || [];
-          
-          // Check if location already exists for this product
+          const shelfIdStr = idToString(shelfLocation?._id);
           const existingLocationIndex = existingLocations.findIndex(
-            (loc: { locationId: string | { toString(): string } }) => loc.locationId && shelfLocation && loc.locationId.toString() === shelfLocation._id!.toString()
+            (loc: { locationId: any }) => idToString(loc?.locationId) === shelfIdStr
           );
-          
-          let updatedLocations;
-          if (existingLocationIndex >= 0) {
-            // Update existing location quantity
-            updatedLocations = [...existingLocations];
-            updatedLocations[existingLocationIndex] = {
-              ...updatedLocations[existingLocationIndex],
-              quantity: updatedLocations[existingLocationIndex].quantity + item.quantity,
-              lastUpdated: new Date()
-            };
-          } else {
-            // Add new location
-            updatedLocations = [
-              ...existingLocations,
-              {
+
+          let updatedLocations = [...existingLocations];
+
+          if (actionMode === 'add') {
+            // Enforce not exceeding available inventory
+            const allocated = getAllocatedQuantity(currentProduct);
+            const available = Math.max(0, (currentProduct.quantity || 0) - allocated);
+            if (available <= 0) {
+              throw new Error(`No available stock to allocate for ${currentProduct.name}`);
+            }
+            if (item.quantity > available) {
+              throw new Error(`Cannot allocate ${item.quantity} for ${currentProduct.name}. Available: ${available}`);
+            }
+
+            if (existingLocationIndex >= 0) {
+              updatedLocations[existingLocationIndex] = {
+                ...updatedLocations[existingLocationIndex],
+                quantity: (updatedLocations[existingLocationIndex].quantity || 0) + item.quantity,
+                lastUpdated: new Date()
+              };
+            } else {
+              updatedLocations.push({
                 locationId: shelfLocation!._id,
                 quantity: item.quantity,
                 lastUpdated: new Date()
-              }
-            ];
+              });
+            }
+          } else {
+            // actionMode === 'remove': enforce not removing more than exists on this shelf
+            if (existingLocationIndex < 0) {
+              throw new Error(`${currentProduct.name} is not on this shelf`);
+            }
+            const currentQtyOnShelf = updatedLocations[existingLocationIndex]?.quantity || 0;
+            if (item.quantity > currentQtyOnShelf) {
+              throw new Error(`Cannot remove ${item.quantity} from shelf for ${currentProduct.name}. On shelf: ${currentQtyOnShelf}`);
+            }
+            const newQty = currentQtyOnShelf - item.quantity;
+            if (newQty > 0) {
+              updatedLocations[existingLocationIndex] = {
+                ...updatedLocations[existingLocationIndex],
+                quantity: newQty,
+                lastUpdated: new Date()
+              };
+            } else {
+              // remove this location entry entirely
+              updatedLocations.splice(existingLocationIndex, 1);
+            }
           }
-          
+
           // Update the product with new locations
           const updateResponse = await fetch(`/api/products/${item.productId}`, {
             method: 'PUT',
@@ -404,9 +491,12 @@ const WarehouseVisualization: React.FC = () => {
       setShowAddItems(false);
       setSelectedProducts([]);
       setError(null);
+      setFormError(null);
     } catch (error) {
-      setError('Error adding items to shelf: ' + (error instanceof Error ? error.message : 'Unknown error'));
-      console.error('Error adding items to shelf:', error);
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Error ${actionMode === 'add' ? 'adding' : 'removing'} items: ${msg}`);
+      setFormError(msg);
+      console.error('Error updating items on shelf:', error);
     } finally {
       setLoading(false);
     }
@@ -531,9 +621,7 @@ const WarehouseVisualization: React.FC = () => {
                       <div key={raftId} className="bg-slate-700/30 rounded-xl p-4 relative">
                         <div className="flex justify-between items-center mb-4">
                           <h3 className="text-lg font-medium text-cyan-400">Rack {raftId}</h3>
-                          <div className="text-xs text-slate-400">
-                            Click shelf to add items
-                          </div>
+                          <div className="text-xs text-slate-400">Click shelf to add/remove</div>
                         </div>
                         
                         {/* Vertical rack visualization */}
@@ -697,13 +785,13 @@ const WarehouseVisualization: React.FC = () => {
             </div>
           </div>
 
-          {/* Add Items Modal */}
+          {/* Add/Remove Items Modal */}
           {showAddItems && selectedShelf && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                 <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center">
                   <h2 className="text-xl font-semibold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                    Add Items to Rack {selectedShelf.raftId} - Shelf {selectedShelf.shelfId}
+                    {actionMode === 'add' ? 'Add' : 'Remove'} Items — Rack {selectedShelf.raftId} · Shelf {selectedShelf.shelfId}
                   </h2>
                   <button
                     onClick={() => setShowAddItems(false)}
@@ -717,12 +805,43 @@ const WarehouseVisualization: React.FC = () => {
                 
                 <div className="p-6">
                   <div className="mb-4">
-                    <h3 className="text-lg font-medium text-white mb-2">Select Products to Add</h3>
-                    <p className="text-sm text-slate-400">Choose products and quantities to add to this rack</p>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-medium text-white">Select Products to {actionMode === 'add' ? 'Add' : 'Remove'}</h3>
+                      <div className="text-xs text-slate-400">Mode:</div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <button onClick={() => setActionMode('add')} className={`px-2 py-1 rounded border ${actionMode==='add'?'bg-cyan-500/20 border-cyan-500/40 text-cyan-300':'border-slate-600 text-slate-300 hover:bg-slate-700/40'}`}>Add</button>
+                        <button onClick={() => setActionMode('remove')} className={`px-2 py-1 rounded border ${actionMode==='remove'?'bg-red-500/20 border-red-500/40 text-red-300':'border-slate-600 text-slate-300 hover:bg-slate-700/40'}`}>Remove</button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-400">{actionMode === 'add' ? 'Choose products and quantities to allocate to this shelf' : 'Choose products and quantities to remove from this shelf'}</p>
                   </div>
 
+                  {formError && (
+                    <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 text-red-300 rounded">
+                      {formError}
+                    </div>
+                  )}
+
                   <div className="space-y-4 mb-6">
-                    {selectedProducts.map((item, index) => (
+                    {selectedProducts.map((item, index) => {
+                      // compute constraints
+                      const product = allProducts.find(p => p._id?.toString() === item.productId);
+                      let maxQty = 999999;
+                      let helper = '';
+                      if (product) {
+                        if (actionMode === 'add') {
+                          const allocated = (product.locations || []).reduce((sum, l) => sum + (l.quantity || 0), 0);
+                          const available = Math.max(0, (product.quantity || 0) - allocated);
+                          maxQty = available;
+                          helper = `Available to allocate: ${available}`;
+                        } else if (actionMode === 'remove' && selectedShelf?.location?._id) {
+                          const shelfIdStr = selectedShelf.location._id?.toString();
+                          const onShelf = (product.locations || []).find(l => l.locationId?.toString() === shelfIdStr)?.quantity || 0;
+                          maxQty = onShelf;
+                          helper = `On this shelf: ${onShelf}`;
+                        }
+                      }
+                      return (
                       <div key={index} className="flex gap-3 items-center bg-slate-700/30 p-3 rounded-lg">
                         <select
                           value={item.productId}
@@ -730,7 +849,11 @@ const WarehouseVisualization: React.FC = () => {
                           className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         >
                           <option value="">Select a product</option>
-                          {allProducts.map((product) => (
+                          {(actionMode === 'add' ? allProducts : allProducts.filter(p => {
+                            if (!selectedShelf?.location?._id) return false;
+                            const sid = selectedShelf.location._id.toString();
+                            return (p.locations || []).some(l => l.locationId?.toString() === sid && (l.quantity || 0) > 0);
+                          })).map((product) => (
                             <option key={product._id?.toString()} value={product._id?.toString()}>
                               {product.name} - {product.sku}
                             </option>
@@ -739,11 +862,13 @@ const WarehouseVisualization: React.FC = () => {
                         <input
                           type="number"
                           min="1"
+                          max={isFinite(maxQty) ? maxQty : undefined}
                           value={item.quantity}
                           onChange={(e) => updateSelectedProduct(index, 'quantity', parseInt(e.target.value) || 1)}
                           className="w-20 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                           placeholder="Qty"
                         />
+                        <div className="text-xs text-slate-400 min-w-[120px]">{helper}</div>
                         <button
                           onClick={() => removeSelectedProduct(index)}
                           className="text-red-400 hover:text-red-300 p-1"
@@ -753,7 +878,8 @@ const WarehouseVisualization: React.FC = () => {
                           </svg>
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="flex gap-3 mb-6">
@@ -761,7 +887,7 @@ const WarehouseVisualization: React.FC = () => {
                       onClick={handleAddProduct}
                       className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-lg transition-all"
                     >
-                      + Add Another Product
+                      + {actionMode === 'add' ? 'Add Another Product' : 'Add Product to Remove'}
                     </button>
                   </div>
 
@@ -774,14 +900,20 @@ const WarehouseVisualization: React.FC = () => {
                     </button>
                     <button
                       onClick={saveItemsToShelf}
-                      disabled={loading || selectedProducts.length === 0 || selectedProducts.some(p => !p.productId)}
+                      disabled={
+                        loading ||
+                        selectedProducts.length === 0 ||
+                        selectedProducts.some(p => !p.productId || p.quantity <= 0)
+                      }
                       className={`px-6 py-3 rounded-lg text-sm font-medium text-white transition-all ${
-                        loading || selectedProducts.length === 0 || selectedProducts.some(p => !p.productId)
+                        loading || selectedProducts.length === 0 || selectedProducts.some(p => !p.productId || p.quantity <= 0)
                           ? 'bg-slate-600 cursor-not-allowed opacity-50'
-                          : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transform hover:scale-[1.02] shadow-lg'
+                          : (actionMode === 'add'
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transform hover:scale-[1.02] shadow-lg'
+                              : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 transform hover:scale-[1.02] shadow-lg')
                       }`}
                     >
-                      {loading ? 'Adding...' : 'Add Items to Rack'}
+                      {loading ? (actionMode === 'add' ? 'Adding...' : 'Removing...') : (actionMode === 'add' ? 'Add Items to Rack' : 'Remove Items from Rack')}
                     </button>
                   </div>
                 </div>

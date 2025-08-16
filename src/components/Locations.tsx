@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Location } from '@/types/database';
 
 const Locations: React.FC = () => {
@@ -13,6 +13,12 @@ const Locations: React.FC = () => {
   const [showCreateLocation, setShowCreateLocation] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 
+  // Warehouse layout state
+  const [racks, setRacks] = useState<number[]>([1, 2, 3]);
+  const [shelvesByRack, setShelvesByRack] = useState<Record<number, number>>({ 1: 5, 2: 5, 3: 5 });
+  const [selectedRack, setSelectedRack] = useState<number>(1);
+  const [selectedShelf, setSelectedShelf] = useState<number>(1);
+
   // New location form state
   const [newLocation, setNewLocation] = useState({
     name: '',
@@ -23,6 +29,8 @@ const Locations: React.FC = () => {
     parentLocationId: '',
     isActive: true
   });
+
+  const selectedCode = useMemo(() => `R${selectedRack}S${selectedShelf}`, [selectedRack, selectedShelf]);
 
   // Fetch locations on component mount
   useEffect(() => {
@@ -46,6 +54,26 @@ const Locations: React.FC = () => {
 
       const data = await response.json();
       setLocations(data);
+      // Build rack/shelf structure from codes like R{rack}S{shelf}
+      const rackSet = new Set<number>();
+      const shelvesMap: Record<number, number> = {};
+      const codeRegex = /^R(\d+)S(\d+)$/i;
+      for (const loc of data as Location[]) {
+        const m = codeRegex.exec(loc.code || '');
+        if (!m) continue;
+        const r = parseInt(m[1], 10);
+        const s = parseInt(m[2], 10);
+        rackSet.add(r);
+        shelvesMap[r] = Math.max(shelvesMap[r] || 0, s);
+      }
+      const defaultRacks = [1, 2, 3];
+      const rackArr = Array.from(new Set<number>([...defaultRacks, ...Array.from(rackSet)])).sort((a, b) => a - b);
+      for (const r of rackArr) {
+        if (!shelvesMap[r]) shelvesMap[r] = 5;
+        shelvesMap[r] = Math.max(shelvesMap[r], 5);
+      }
+      setRacks(rackArr);
+      setShelvesByRack(shelvesMap);
       setError(null);
     } catch (error) {
       setError('Error fetching locations');
@@ -289,6 +317,94 @@ const Locations: React.FC = () => {
                 <option value="bin">Bin</option>
                 <option value="zone">Zone</option>
               </select>
+            </div>
+          </div>
+
+          {/* Warehouse Layout */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+            <div className="xl:col-span-2">
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl shadow-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-xl font-semibold text-white">Warehouse Layout - Vertical Racks × Shelves</h2>
+                  <span className="text-slate-400 text-sm">Click shelf to select</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {racks.map((rack) => (
+                    <div key={rack} className={`relative rounded-2xl border ${selectedRack === rack ? 'border-cyan-500' : 'border-slate-600/50'} bg-slate-900/40 p-5`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-cyan-300 font-semibold">Rack {rack}</span>
+                        <span className="text-slate-500 text-xs">R{rack}</span>
+                      </div>
+                      {/* Vertical spine */}
+                      <div className="absolute left-1/2 top-16 bottom-5 -translate-x-1/2 w-px bg-slate-600/30 hidden md:block" />
+
+                      <div className="space-y-3">
+                        {Array.from({ length: shelvesByRack[rack] || 5 }, (_, i) => i + 1).map((shelf) => {
+                          const active = selectedRack === rack && selectedShelf === shelf;
+                          const code = `R${rack}S${shelf}`;
+                          const matchesSearch = searchQuery.trim() && code.toLowerCase().includes(searchQuery.toLowerCase());
+                          return (
+                            <button
+                              key={shelf}
+                              type="button"
+                              onClick={() => { setSelectedRack(rack); setSelectedShelf(shelf); setSelectedLocation(null); }}
+                              className={`relative w-full text-left px-4 py-3 rounded-xl border transition-all group
+                                ${active ? 'bg-green-500 border-green-400 text-white shadow-inner'
+                                          : 'bg-slate-800/60 border-slate-600/60 text-slate-300 hover:bg-slate-700/60'}
+                                ${matchesSearch ? 'ring-2 ring-amber-400/70' : ''}`}
+                              title={code}
+                            >
+                              <span className="hidden md:block absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1 bg-transparent" />
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className={`h-2 w-2 rounded-full ${active ? 'bg-white' : 'bg-slate-500/70'}`} />
+                                  <span className="font-medium">Shelf {shelf}</span>
+                                </div>
+                                {active && (
+                                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-md">Selected</span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Legend */}
+                <div className="mt-5 flex items-center space-x-6 text-sm text-slate-300">
+                  <div className="flex items-center space-x-2">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-green-500 border border-green-400" />
+                    <span>Selected</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-slate-800/60 border border-slate-600/60" />
+                    <span>Empty</span>
+                  </div>
+                  {searchQuery && (
+                    <div className="flex items-center space-x-2">
+                      <span className="inline-block h-3 w-3 rounded-sm bg-amber-400/70 border border-amber-300/70" />
+                      <span>Search Match</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Selected details */}
+            <div>
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl shadow-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white">{`Rack ${selectedRack} · Shelf ${selectedShelf}`}</h3>
+                  <span className="text-xs text-slate-400">{selectedCode}</span>
+                </div>
+                <div className="space-y-3 text-sm text-slate-300">
+                  <p>No product data linked. Select shelves to assign via the Product modal.</p>
+                  <p className="text-slate-400">Tip: Use the search box to quickly find a code like "{selectedCode}".</p>
+                </div>
+              </div>
             </div>
           </div>
 

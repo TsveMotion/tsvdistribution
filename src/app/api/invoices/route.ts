@@ -15,6 +15,12 @@ export async function GET(request: NextRequest) {
     }
 
     const db = await getDatabase();
+    // Ensure unique index on orderId to prevent duplicate invoices per order (idempotency)
+    try {
+      await db.collection<Invoice>('invoices').createIndex({ orderId: 1 }, { unique: true, name: 'uniq_invoice_per_order' });
+    } catch (e) {
+      // ignore index creation races
+    }
     const invoices = await db.collection<Invoice>('invoices')
       .find({})
       .sort({ createdAt: -1 })
@@ -112,13 +118,24 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     };
 
-    const result = await db.collection<Invoice>('invoices').insertOne(newInvoice);
-
-    return NextResponse.json({
-      message: 'Invoice created successfully',
-      invoiceId: result.insertedId,
-      invoice: { ...newInvoice, _id: result.insertedId }
-    }, { status: 201 });
+    try {
+      const result = await db.collection<Invoice>('invoices').insertOne(newInvoice);
+      return NextResponse.json({
+        message: 'Invoice created successfully',
+        invoiceId: result.insertedId,
+        invoice: { ...newInvoice, _id: result.insertedId }
+      }, { status: 201 });
+    } catch (err: any) {
+      // Handle duplicate key error due to unique index (race condition)
+      if (err && (err.code === 11000 || err.codeName === 'DuplicateKey')) {
+        const existing = await db.collection<Invoice>('invoices').findOne({ orderId: new ObjectId(orderId) });
+        return NextResponse.json(
+          { error: 'Invoice already exists for this order', invoiceId: existing?._id, invoice: existing || null },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
   } catch (error) {
     console.error('Error creating invoice:', error);
     return NextResponse.json(

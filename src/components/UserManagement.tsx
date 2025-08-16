@@ -278,7 +278,7 @@ export default function UserManagement({ userToken }: UserManagementProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600">Loading users...</div>
+        <div className="text-lg text-slate-300">Loading users...</div>
       </div>
     );
   }
@@ -287,15 +287,15 @@ export default function UserManagement({ userToken }: UserManagementProps) {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Users className="h-8 w-8 text-blue-600" />
+          <Users className="h-8 w-8 text-cyan-400" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <p className="text-gray-600">Manage user accounts and permissions</p>
+            <h1 className="text-2xl font-bold text-white">User Management</h1>
+            <p className="text-slate-400">Manage user accounts and permissions</p>
           </div>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          className="px-4 py-2 rounded-lg flex items-center gap-2 text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow"
         >
           <Plus className="h-4 w-4" />
           Add User
@@ -303,85 +303,85 @@ export default function UserManagement({ userToken }: UserManagementProps) {
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-red-900/40 border border-red-700 text-red-200 px-4 py-3 rounded mb-4">
           {error}
           <button
             onClick={() => setError(null)}
-            className="float-right text-red-700 hover:text-red-900"
+            className="float-right text-red-300 hover:text-red-100"
           >
             ×
           </button>
         </div>
       )}
 
-      <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Users ({users.length})</h2>
+      <div className="bg-slate-800/60 backdrop-blur shadow-sm rounded-lg border border-slate-700">
+        <div className="px-6 py-4 border-b border-slate-700">
+          <h2 className="text-lg font-semibold text-white">Users ({users.length})</h2>
         </div>
         
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-slate-700">
+            <thead className="bg-slate-700/60">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">User</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Created</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-slate-800 divide-y divide-slate-700">
               {users.map((user) => (
-                <tr key={user._id?.toString()}>
+                <tr key={user._id?.toString()} className="hover:bg-slate-700/40">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
+                      <div className="text-sm font-medium text-white">{user.name}</div>
+                      <div className="text-sm text-slate-400">{user.email}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                      ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 
-                        user.role === 'staff' ? 'bg-blue-100 text-blue-800' : 
-                        'bg-green-100 text-green-800'}`}>
+                      ${user.role === 'admin' ? 'bg-purple-500/15 text-purple-300 ring-1 ring-purple-400/30' : 
+                        user.role === 'staff' ? 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-400/30' : 
+                        'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30'}`}>
                       {user.role}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                      ${user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      ${user.active ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30' : 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/30'}`}>
                       {user.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => openEditModal(user)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-300 hover:text-blue-200"
                         title="Edit user"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => openPasswordModal(user)}
-                        className="text-yellow-600 hover:text-yellow-900"
+                        className="text-amber-300 hover:text-amber-200"
                         title="Change password"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => toggleUserStatus(user)}
-                        className={user.active ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900"}
-                        title={user.active ? "Deactivate user" : "Activate user"}
+                        className={user.active ? 'text-orange-300 hover:text-orange-200' : 'text-emerald-300 hover:text-emerald-200'}
+                        title={user.active ? 'Deactivate user' : 'Activate user'}
                       >
                         {user.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                       </button>
                       <button
                         onClick={() => deleteUser(user)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-rose-300 hover:text-rose-200"
                         title="Delete user"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -397,52 +397,52 @@ export default function UserManagement({ userToken }: UserManagementProps) {
 
       {/* Create User Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md text-slate-100">
             <h3 className="text-lg font-semibold mb-4">Create New User</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
                 <input
                   type="text"
                   value={createData.name}
                   onChange={(e) => setCreateData({ ...createData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100 placeholder-slate-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
                 <input
                   type="email"
                   value={createData.email}
                   onChange={(e) => setCreateData({ ...createData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100 placeholder-slate-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={createData.password}
                     onChange={(e) => setCreateData({ ...createData, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100 placeholder-slate-500"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Role</label>
                 <select
                   value={createData.role}
                   onChange={(e) => setCreateData({ ...createData, role: e.target.value as 'admin' | 'staff' | 'employee' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100"
                 >
                   <option value="employee">Employee</option>
                   <option value="staff">Staff</option>
@@ -453,7 +453,7 @@ export default function UserManagement({ userToken }: UserManagementProps) {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={createUser}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center justify-center gap-2"
+                className="flex-1 text-white px-4 py-2 rounded-md flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500"
               >
                 <Save className="h-4 w-4" />
                 Create User
@@ -463,7 +463,7 @@ export default function UserManagement({ userToken }: UserManagementProps) {
                   setShowCreateModal(false);
                   setCreateData({ email: '', password: '', name: '', role: 'employee' });
                 }}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md flex items-center justify-center gap-2"
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-100 px-4 py-2 rounded-md flex items-center justify-center gap-2"
               >
                 <X className="h-4 w-4" />
                 Cancel
@@ -475,34 +475,34 @@ export default function UserManagement({ userToken }: UserManagementProps) {
 
       {/* Edit User Modal */}
       {showEditModal && editingUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md text-slate-100">
             <h3 className="text-lg font-semibold mb-4">Edit User</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
                 <input
                   type="text"
                   value={editData.name}
                   onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
                 <input
                   type="email"
                   value={editData.email}
                   onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Role</label>
                 <select
                   value={editData.role}
                   onChange={(e) => setEditData({ ...editData, role: e.target.value as 'admin' | 'staff' | 'employee' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100"
                 >
                   <option value="employee">Employee</option>
                   <option value="staff">Staff</option>
@@ -513,7 +513,7 @@ export default function UserManagement({ userToken }: UserManagementProps) {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={updateUser}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center justify-center gap-2"
+                className="flex-1 text-white px-4 py-2 rounded-md flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500"
               >
                 <Save className="h-4 w-4" />
                 Save Changes
@@ -523,7 +523,7 @@ export default function UserManagement({ userToken }: UserManagementProps) {
                   setShowEditModal(false);
                   setEditingUser(null);
                 }}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md flex items-center justify-center gap-2"
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-100 px-4 py-2 rounded-md flex items-center justify-center gap-2"
               >
                 <X className="h-4 w-4" />
                 Cancel
@@ -535,33 +535,33 @@ export default function UserManagement({ userToken }: UserManagementProps) {
 
       {/* Change Password Modal */}
       {showPasswordModal && editingUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md text-slate-100">
             <h3 className="text-lg font-semibold mb-4">Change Password for {editingUser.name}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">New Password</label>
                 <input
                   type="password"
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Confirm Password</label>
                 <input
                   type="password"
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-slate-100"
                 />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
                 onClick={changePassword}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center justify-center gap-2"
+                className="flex-1 text-white px-4 py-2 rounded-md flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500"
               >
                 <Save className="h-4 w-4" />
                 Change Password
@@ -572,7 +572,7 @@ export default function UserManagement({ userToken }: UserManagementProps) {
                   setEditingUser(null);
                   setPasswordData({ newPassword: '', confirmPassword: '' });
                 }}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md flex items-center justify-center gap-2"
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-100 px-4 py-2 rounded-md flex items-center justify-center gap-2"
               >
                 <X className="h-4 w-4" />
                 Cancel

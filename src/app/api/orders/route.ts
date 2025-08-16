@@ -129,10 +129,33 @@ export async function POST(request: NextRequest) {
         total: itemTotal
       });
     }
-    
-    // Calculate tax and total
+    // Decrement product stock atomically per item with safety check and rollback on failure
+    const decremented: { productId: ObjectId; qty: number }[] = [];
+    for (const it of processedItems) {
+      const upd = await db
+        .collection<Product>('products')
+        .updateOne(
+          { _id: it.productId, quantity: { $gte: it.quantity } },
+          { $inc: { quantity: -it.quantity } }
+        );
+
+      if (upd.modifiedCount !== 1) {
+        // Rollback any prior decrements
+        for (const d of decremented) {
+          await db.collection<Product>('products').updateOne({ _id: d.productId }, { $inc: { quantity: d.qty } });
+        }
+        return NextResponse.json(
+          { error: 'Insufficient stock due to concurrent update. Please refresh and try again.' },
+          { status: 400 }
+        );
+      }
+      decremented.push({ productId: it.productId, qty: it.quantity });
+    }
+
+    // Calculate tax and total (VAT only when explicitly selected)
+    const includeVAT = !!orderData.includeVAT;
     const taxRate = 0.20; // 20% VAT
-    const tax = subtotal * taxRate;
+    const tax = includeVAT ? subtotal * taxRate : 0;
     const shipping = orderData.shipping || 0;
     const total = subtotal + tax + shipping;
     
@@ -155,13 +178,20 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     };
     
-    const result = await db.collection<Order>('orders').insertOne(newOrder);
-    
-    return NextResponse.json({
-      message: 'Order created successfully',
-      orderId: result.insertedId,
-      order: { ...newOrder, _id: result.insertedId }
-    }, { status: 201 });
+    try {
+      const result = await db.collection<Order>('orders').insertOne(newOrder);
+      return NextResponse.json({
+        message: 'Order created successfully',
+        orderId: result.insertedId,
+        order: { ...newOrder, _id: result.insertedId }
+      }, { status: 201 });
+    } catch (e) {
+      // Rollback stock decrements if order creation fails
+      for (const d of decremented) {
+        await db.collection<Product>('products').updateOne({ _id: d.productId }, { $inc: { quantity: d.qty } });
+      }
+      throw e;
+    }
   } catch (error) {
     console.error('Error creating order:', error);
     return NextResponse.json(

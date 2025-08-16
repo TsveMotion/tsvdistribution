@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Order, TrackingUpdate, Product, OrderItem } from '@/types/database';
+import { Order, TrackingUpdate, Product, OrderItem, Invoice } from '@/types/database';
+import InvoiceManagement from './InvoiceManagement';
+import InvoicePdfDoc from './invoices/InvoicePdfDoc';
+import { PDFDownloadLink } from '@react-pdf/renderer';
 
 const OrderTracking: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -11,16 +14,20 @@ const OrderTracking: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [itemQuantity, setItemQuantity] = useState<number>(1);
+  const [activeTab, setActiveTab] = useState<'orders' | 'invoices'>('orders');
+  const [orderInvoice, setOrderInvoice] = useState<Invoice | null>(null);
   
   // New order form state
   const [newOrder, setNewOrder] = useState({
     customerName: '',
     customerEmail: '',
+    salesChannel: '',
     street: '',
     city: '',
     state: '',
@@ -62,6 +69,72 @@ const OrderTracking: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Create invoice for an order
+  const createInvoiceForOrder = async (orderId: string) => {
+    try {
+      setInvoiceLoading(true);
+      setError(null);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId })
+      });
+
+      if (res.ok) {
+        const inv: Invoice = await res.json();
+        setOrderInvoice(inv);
+        return;
+      }
+
+      if (res.status === 409) {
+        // Already exists - fetch and set
+        const existing = await fetchInvoiceByOrderId(orderId);
+        setOrderInvoice(existing);
+        setError('Invoice already exists for this order.');
+        return;
+      }
+
+      const text = await res.text();
+      setError(text || 'Failed to create invoice.');
+    } catch (e) {
+      console.error('Create invoice error:', e);
+      setError('Failed to create invoice. Please try again.');
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  const fetchInvoiceByOrderId = async (orderId: string): Promise<Invoice | null> => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/invoices', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) return null;
+      const all: Invoice[] = await response.json();
+      const found = all.find(inv => (inv.orderId as any)?.toString?.() === orderId);
+      return found || null;
+    } catch (err) {
+      console.error('Error fetching invoice by order ID:', err);
+      setError('Could not fetch invoice. Please try again.');
+      return null;
+    }
+  };
+
+  // Extract channel note like "[Channel: eBay]" from notes
+  const getChannelFromNotes = (notes?: string) => {
+    if (!notes) return '';
+    const match = notes.match(/\[Channel:\s*([^\]]+)\]/i);
+    return match ? match[1] : '';
   };
 
   const fetchTrackingUpdates = async (orderId: string) => {
@@ -287,6 +360,12 @@ const OrderTracking: React.FC = () => {
       setLoading(true);
       setError(null);
       
+      if (!newOrder.salesChannel) {
+        setError('Please select a sales channel (eBay, Vinted, or Facebook Marketplace)');
+        setLoading(false);
+        return;
+      }
+
       if (orderItems.length === 0) {
         setError('Please add at least one item to the order');
         setLoading(false);
@@ -295,6 +374,10 @@ const OrderTracking: React.FC = () => {
       
       const { subtotal, tax, shipping, total } = calculateOrderTotal();
       
+      const channelNote = newOrder.salesChannel ? `[Channel: ${
+        newOrder.salesChannel === 'facebook' ? 'Facebook Marketplace' : newOrder.salesChannel.charAt(0).toUpperCase() + newOrder.salesChannel.slice(1)
+      }]` : '';
+
       const orderData = {
         customerName: newOrder.customerName,
         customerEmail: newOrder.customerEmail,
@@ -311,7 +394,9 @@ const OrderTracking: React.FC = () => {
         tax,
         shipping,
         total,
-        notes: newOrder.notes,
+        includeVAT: newOrder.includeVAT,
+        // Prepend channel to notes to avoid backend changes
+        notes: [channelNote, newOrder.notes].filter(Boolean).join(' ').trim(),
         trackingNumber: newOrder.trackingNumber || undefined,
         carrier: newOrder.carrier || undefined,
       };
@@ -331,6 +416,29 @@ const OrderTracking: React.FC = () => {
       }
       
       const createdOrder = await response.json();
+
+      // Auto-create invoice for this order
+      try {
+        const invRes = await fetch('/api/invoices', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ orderId: (createdOrder._id || createdOrder.id)?.toString?.() || createdOrder._id || createdOrder.id }),
+        });
+        if (invRes.status === 201) {
+          const invJson = await invRes.json();
+          setOrderInvoice(invJson.invoice);
+        } else if (invRes.status === 409) {
+          const invJson = await invRes.json();
+          // Fetch existing invoice
+          const inv = await fetchInvoiceByOrderId((createdOrder._id || createdOrder.id)?.toString?.());
+          setOrderInvoice(inv || null);
+        }
+      } catch (e) {
+        console.warn('Invoice auto-create failed (non-blocking):', e);
+      }
       
       // If tracking number was provided, create tracking via SHIP24
       if (newOrder.trackingNumber && newOrder.carrier) {
@@ -357,6 +465,7 @@ const OrderTracking: React.FC = () => {
       setNewOrder({
         customerName: '',
         customerEmail: '',
+        salesChannel: '',
         street: '',
         city: '',
         state: '',
@@ -370,9 +479,11 @@ const OrderTracking: React.FC = () => {
       });
       setOrderItems([]);
       setShowCreateOrder(false);
-      
+
       // Refresh orders list
       await fetchOrders();
+      // Optionally switch to invoices tab so user can download immediately
+      setActiveTab('invoices');
       
     } catch (error) {
       setError('Error creating order: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -398,46 +509,69 @@ const OrderTracking: React.FC = () => {
             </div>
           )}
 
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              Order Tracking
-            </h1>
-            <button
-              onClick={() => setShowCreateOrder(true)}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg shadow-cyan-500/25"
-            >
-              Create New Order
-            </button>
+          {/* Header + Tabs */}
+          <div className="flex flex-col gap-4 mb-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                Orders & Invoices
+              </h1>
+              {activeTab === 'orders' && (
+                <button
+                  onClick={() => setShowCreateOrder(true)}
+                  className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg shadow-cyan-500/25"
+                >
+                  Create New Order
+                </button>
+              )}
+            </div>
+            <div className="inline-flex bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden w-fit">
+              <button
+                onClick={() => setActiveTab('orders')}
+                className={`px-4 py-2 text-sm ${activeTab === 'orders' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700/40'}`}
+              >Orders</button>
+              <button
+                onClick={() => setActiveTab('invoices')}
+                className={`px-4 py-2 text-sm ${activeTab === 'invoices' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700/40'}`}
+              >Invoices</button>
+            </div>
           </div>
 
-      {/* Search and Filter Controls */}
-      <div className="mb-8 flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search by order number, customer name, or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-          />
+      {activeTab === 'orders' ? (
+        <>
+          {/* Search and Filter Controls */}
+          <div className="mb-8 flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search by order number, customer name, or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <div className="flex gap-3">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-3 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="mt-4">
+          <InvoiceManagement />
         </div>
-        <div className="flex gap-3">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-3 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-      </div>
+      )}
 
+      {activeTab === 'orders' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Orders List */}
         <div className="lg:col-span-2">
@@ -473,10 +607,15 @@ const OrderTracking: React.FC = () => {
                       <p className="text-sm text-slate-300">{order.customerName}</p>
                       <p className="text-sm text-slate-300">{order.customerEmail}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right space-y-1">
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
                         {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                       </span>
+                      {getChannelFromNotes(order.notes) && (
+                        <div className="text-[10px] px-2 py-0.5 rounded bg-slate-700/50 text-slate-200 inline-block">
+                          {getChannelFromNotes(order.notes)}
+                        </div>
+                      )}
                       <p className="text-sm text-slate-300 mt-1">£{order.total.toFixed(2)}</p>
                     </div>
                   </div>
@@ -506,6 +645,11 @@ const OrderTracking: React.FC = () => {
               <div className="p-6">
                 <div className="mb-6">
                   <h3 className="text-sm font-medium text-slate-300 mb-2">Customer Information</h3>
+                  {getChannelFromNotes(selectedOrder.notes) && (
+                    <p className="mb-2 text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-700/50 text-slate-200">
+                      Channel: <span className="font-medium">{getChannelFromNotes(selectedOrder.notes)}</span>
+                    </p>
+                  )}
                   <p className="text-sm text-white">{selectedOrder.customerName}</p>
                   <p className="text-sm text-slate-300">{selectedOrder.customerEmail}</p>
                   <div className="text-sm text-slate-300">
@@ -527,6 +671,46 @@ const OrderTracking: React.FC = () => {
                         <p className="text-white">£{item.total.toFixed(2)}</p>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* Invoice Actions */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-slate-300 mb-2">Invoice</h3>
+                  <div className="flex items-center gap-2">
+                    {!orderInvoice && (
+                      <button
+                        onClick={() => selectedOrder?._id && createInvoiceForOrder(selectedOrder._id.toString())}
+                        disabled={invoiceLoading}
+                        className={`px-3 py-2 text-sm rounded text-white ${invoiceLoading ? 'bg-slate-700/30 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700'}`}
+                      >
+                        {invoiceLoading ? 'Creating…' : 'Create Invoice'}
+                      </button>
+                    )}
+                    <button
+                      onClick={async () => {
+                        if (!selectedOrder?._id) return;
+                        setInvoiceLoading(true);
+                        const inv = await fetchInvoiceByOrderId(selectedOrder._id.toString());
+                        setOrderInvoice(inv);
+                        if (!inv) setError('No invoice found yet for this order');
+                        setInvoiceLoading(false);
+                      }}
+                      disabled={invoiceLoading}
+                      className={`px-3 py-2 text-sm rounded text-white ${invoiceLoading ? 'bg-slate-700/30 cursor-not-allowed' : 'bg-slate-700/50 hover:bg-slate-600/50'}`}
+                    >
+                      {invoiceLoading ? 'Refreshing…' : 'Refresh Invoice'}
+                    </button>
+                    {orderInvoice && (
+                      <PDFDownloadLink
+                        document={<InvoicePdfDoc invoice={orderInvoice} />}
+                        fileName={`Invoice_${orderInvoice.invoiceNumber}.pdf`}
+                      >
+                        {({ loading }: { loading: boolean }) => (
+                          <span className="px-3 py-2 text-sm rounded bg-gradient-to-r from-cyan-600 to-blue-600 text-white">{loading ? 'Preparing…' : 'Download PDF'}</span>
+                        )}
+                      </PDFDownloadLink>
+                    )}
                   </div>
                 </div>
 
@@ -621,6 +805,7 @@ const OrderTracking: React.FC = () => {
           )}
         </div>
       </div>
+      )}
 
       {/* Create Order Modal */}
       {showCreateOrder && (
@@ -644,11 +829,26 @@ const OrderTracking: React.FC = () => {
                   {error}
                 </div>
               )}
+              <p className="mb-4 text-sm text-slate-400">Only <span className="text-slate-200 font-medium">Sales Channel</span> and <span className="text-slate-200 font-medium">Items</span> are required. Customer and address fields are optional.</p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Customer Information */}
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-4">Customer Information</h3>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-300 mb-1">Sales Channel</label>
+                    <select
+                      name="salesChannel"
+                      value={newOrder.salesChannel}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                    >
+                      <option value="">Select channel</option>
+                      <option value="ebay">eBay</option>
+                      <option value="vinted">Vinted</option>
+                      <option value="facebook">Facebook Marketplace</option>
+                    </select>
+                  </div>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
@@ -658,7 +858,7 @@ const OrderTracking: React.FC = () => {
                         value={newOrder.customerName}
                         onChange={handleInputChange}
                         className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                        required
+                        placeholder="Optional"
                       />
                     </div>
                     
@@ -670,7 +870,7 @@ const OrderTracking: React.FC = () => {
                         value={newOrder.customerEmail}
                         onChange={handleInputChange}
                         className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                        required
+                        placeholder="Optional"
                       />
                     </div>
                   </div>
@@ -685,7 +885,7 @@ const OrderTracking: React.FC = () => {
                         value={newOrder.street}
                         onChange={handleInputChange}
                         className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                        required
+                        placeholder="Optional"
                       />
                     </div>
                     
@@ -698,7 +898,7 @@ const OrderTracking: React.FC = () => {
                           value={newOrder.city}
                           onChange={handleInputChange}
                           className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                          required
+                          placeholder="Optional"
                         />
                       </div>
                       <div>
@@ -709,7 +909,7 @@ const OrderTracking: React.FC = () => {
                           value={newOrder.state}
                           onChange={handleInputChange}
                           className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                          required
+                          placeholder="Optional"
                         />
                       </div>
                     </div>
@@ -723,7 +923,7 @@ const OrderTracking: React.FC = () => {
                           value={newOrder.zipCode}
                           onChange={handleInputChange}
                           className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                          required
+                          placeholder="Optional"
                         />
                       </div>
                       <div>
@@ -734,7 +934,7 @@ const OrderTracking: React.FC = () => {
                           value={newOrder.country}
                           onChange={handleInputChange}
                           className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                          required
+                          placeholder="Optional"
                         />
                       </div>
                     </div>
@@ -747,6 +947,7 @@ const OrderTracking: React.FC = () => {
                         onChange={handleInputChange}
                         rows={3}
                         className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all resize-none"
+                        placeholder="Optional"
                       />
                     </div>
                   </div>
