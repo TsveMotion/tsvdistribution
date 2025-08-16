@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="50%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#0b1220"/>
+  <g opacity="0.18">
+    <circle cx="250" cy="180" r="220" fill="#06b6d4"/>
+    <circle cx="960" cy="470" r="260" fill="#3b82f6"/>
+    <circle cx="640" cy="320" r="300" fill="#8b5cf6"/>
+  </g>
+  <rect x="60" y="60" width="1080" height="510" rx="28" fill="#0f172a" stroke="url(#g)" stroke-opacity="0.35"/>
+  <g transform="translate(120,180)">
+    <rect x="0" y="0" width="64" height="64" rx="14" fill="url(#g)"/>
+    <path d="M20 20h24v24H20z" fill="white" opacity="0.0"/>
+    <g transform="translate(12,12)">
+      <rect x="0" y="0" width="40" height="40" rx="8" fill="rgba(255,255,255,0.12)"/>
+      <rect x="10" y="10" width="20" height="20" rx="4" fill="white"/>
+    </g>
+    <text x="100" y="48" fill="white" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" font-size="76">TsvStock</text>
+  </g>
+  <text x="120" y="300" fill="#c7d2fe" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="28">Future of Inventory Management</text>
+  <text x="120" y="350" fill="#a5b4fc" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22">Real-time tracking • Barcode workflows • Automated invoicing</text>
+  <a href="https://tsvstock.com">
+    <text x="120" y="420" fill="url(#g)" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="700" font-size="26">https://tsvstock.com</text>
+  </a>
+</svg>

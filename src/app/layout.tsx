@@ -14,8 +14,34 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TsvDistribution - Future of Inventory Management",
-  description: "Revolutionary inventory management solution with real-time tracking, automated invoicing, and intelligent warehouse optimization.",
+  title: "TsvStock - Future of Inventory Management",
+  description: "TsvStock: Real-time tracking, barcode workflows, automated invoicing, and intelligent warehouse optimization.",
+  metadataBase: new URL("https://tsvstock.com"),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "TsvStock - Future of Inventory Management",
+    description: "TsvStock: Real-time tracking, barcode workflows, automated invoicing, and intelligent warehouse optimization.",
+    url: "https://tsvstock.com/",
+    siteName: "TsvStock",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "TsvStock",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TsvStock - Future of Inventory Management",
+    description: "TsvStock: Real-time tracking, barcode workflows, automated invoicing, and intelligent warehouse optimization.",
+    images: ["/og-image.svg"],
+  },
 };
 
 export default function RootLayout({
