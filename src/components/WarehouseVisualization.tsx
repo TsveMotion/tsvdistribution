@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Location } from '@/types/database';
+import ProductDetailModal from '@/components/modals/ProductDetailModal';
 
 interface ProductWithLocation extends Product {
   locationDetails?: Location[];
@@ -20,6 +21,7 @@ const WarehouseVisualization: React.FC = () => {
   const [shelves, setShelves] = useState<ShelfData[]>([]);
   const [selectedShelf, setSelectedShelf] = useState<ShelfData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [highlightedShelves, setHighlightedShelves] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +31,17 @@ const WarehouseVisualization: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<{productId: string, quantity: number}[]>([]);
   const [actionMode, setActionMode] = useState<'add' | 'remove'>('add');
   const [formError, setFormError] = useState<string | null>(null);
+  const [rackFilter, setRackFilter] = useState<'all' | number>('all');
+
+  // Capacity edit state
+  const [editingCapacity, setEditingCapacity] = useState(false);
+  const [newCapacity, setNewCapacity] = useState<number | ''>('');
+
+  // Product details modal state
+  const [showProductDetail, setShowProductDetail] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Initialize warehouse structure (3 rafts, 5 shelves each)
   const warehouseStructure = {
@@ -36,18 +49,42 @@ const WarehouseVisualization: React.FC = () => {
     shelvesPerRaft: 5
   };
 
+  const getShelfCapacityUsage = (shelf: ShelfData) => {
+    try {
+      const totalQty = getShelfProductCount(shelf);
+      const cap = shelf.location?.capacity ?? 10; // default capacity
+      if (!cap || cap <= 0) return { pct: 0, cap: 10, qty: totalQty };
+      const pct = Math.min(100, Math.round((totalQty / cap) * 100));
+      return { pct, cap, qty: totalQty };
+    } catch {
+      return { pct: 0, cap: 10, qty: 0 };
+    }
+  };
+
+  // Compute which rack IDs are visible based on the rack filter
+  const visibleRafts = useMemo(() => {
+    const all = Array.from({ length: warehouseStructure.rafts }, (_, i) => i + 1);
+    return rackFilter === 'all' ? all : all.filter((id) => id === rackFilter);
+  }, [rackFilter]);
+
   useEffect(() => {
     fetchWarehouseData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Debounce the search query for smoother UX
   useEffect(() => {
-    if (searchQuery.trim()) {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (debouncedSearchQuery.trim()) {
       handleSearch();
     } else {
       setHighlightedShelves(new Set());
       setSearchResults([]);
     }
-  }, [searchQuery, products]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [debouncedSearchQuery, products]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchWarehouseData = async () => {
     try {
@@ -296,6 +333,58 @@ const WarehouseVisualization: React.FC = () => {
     setFormError(null);
   };
 
+  const openProductDetails = (product: Product) => {
+    setDetailProduct(product);
+    setShowProductDetail(true);
+  };
+
+  const startEditCapacity = () => {
+    if (!selectedShelf?.location) return;
+    setNewCapacity(selectedShelf.location.capacity ?? 10);
+    setEditingCapacity(true);
+  };
+
+  const cancelEditCapacity = () => {
+    setEditingCapacity(false);
+    setNewCapacity('');
+  };
+
+  const saveCapacity = async () => {
+    try {
+      if (!selectedShelf?.location?._id || newCapacity === '' || newCapacity < 0) return;
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const id = typeof selectedShelf.location._id === 'string' ? selectedShelf.location._id : selectedShelf.location._id.toString();
+      const res = await fetch(`/api/locations/${id}` , {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ capacity: Number(newCapacity) })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update capacity');
+      }
+      // Refresh data and UI
+      await fetchWarehouseData();
+      setEditingCapacity(false);
+      setNewCapacity('');
+      // Keep the same shelf selected after refresh
+      if (selectedShelf) {
+        const refreshed = shelves.find(s => s.raftId === selectedShelf.raftId && s.shelfId === selectedShelf.shelfId);
+        if (refreshed) setSelectedShelf(refreshed);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update capacity';
+      setError(msg);
+      console.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddProduct = () => {
     setSelectedProducts([...selectedProducts, { productId: '', quantity: 1 }]);
   };
@@ -346,7 +435,7 @@ const WarehouseVisualization: React.FC = () => {
             code: `R${selectedShelf.raftId}S${selectedShelf.shelfId}`,
             type: 'shelf',
             description: `Shelf ${selectedShelf.shelfId} on Rack ${selectedShelf.raftId}`,
-            capacity: 100,
+            capacity: 10,
             isActive: true
           }),
         });
@@ -570,40 +659,81 @@ const WarehouseVisualization: React.FC = () => {
           )}
 
           {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center mb-8">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
               Warehouse Layout
             </h1>
-            <div className="text-right">
-              <p className="text-slate-400 text-sm">Total Products: {products.length}</p>
-              <p className="text-slate-400 text-sm">Active Locations: {locations.filter(l => l.isActive).length}</p>
-            </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="mb-8">
-            <div className="relative max-w-md">
-              <input
-                type="text"
-                placeholder="Search products by name, SKU, or category..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 pl-10 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-              />
-              <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            {searchResults.length > 0 && (
-              <div className="mt-2 text-sm text-slate-400">
-                Found {searchResults.length} product{searchResults.length !== 1 ? 's' : ''} - highlighted shelves contain matching items
+          {/* Action Bar: sticky search + rack filter + legend */}
+          <div className="mb-8 sticky top-4 z-20">
+            <div className="flex flex-col md:flex-row gap-3 md:items-center bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-3">
+              {/* Search */}
+              <div className="relative w-full md:max-w-md">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search products by name, SKU, or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2.5 pl-10 pr-9 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                />
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
-            )}
+
+              {/* Rack filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-400">Rack</label>
+                <select
+                  value={rackFilter}
+                  onChange={(e) => setRackFilter((e.target.value as any) === 'all' ? 'all' : Number(e.target.value))}
+                  className="px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="all">All</option>
+                  {Array.from({ length: warehouseStructure.rafts }, (_, i) => i + 1).map((r) => (
+                    <option key={r} value={r}>Rack {r}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Legend + results */}
+              <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-gradient-to-r from-green-500 to-emerald-600"></span>
+                  <span>Has Products</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-gradient-to-r from-slate-600 to-slate-700"></span>
+                  <span>Empty</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-gradient-to-r from-yellow-400 to-orange-500"></span>
+                  <span>Match</span>
+                </div>
+                {searchResults.length > 0 && (
+                  <div className="text-xs text-slate-400">
+                    {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -612,9 +742,8 @@ const WarehouseVisualization: React.FC = () => {
               <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl p-6">
                 <h2 className="text-xl font-semibold text-white mb-6">Warehouse Layout - 3 Vertical Racks × 5 Shelves Each</h2>
                 
-                <div className="grid grid-cols-3 gap-8">
-                  {Array.from({ length: warehouseStructure.rafts }, (_, raftIndex) => {
-                    const raftId = raftIndex + 1;
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {visibleRafts.map((raftId) => {
                     const raftShelves = shelves.filter(shelf => shelf.raftId === raftId);
                     
                     return (
@@ -636,44 +765,73 @@ const WarehouseVisualization: React.FC = () => {
                             {raftShelves.sort((a, b) => a.shelfId - b.shelfId).map((shelf) => {
                               const productCount = getShelfProductCount(shelf);
                               const isSelected = selectedShelf?.raftId === shelf.raftId && selectedShelf?.shelfId === shelf.shelfId;
-                              
+                              const usage = getShelfCapacityUsage(shelf);
+                              const shelfKey = `${shelf.raftId}-${shelf.shelfId}`;
+
                               return (
-                                <div key={`${shelf.raftId}-${shelf.shelfId}`} className="relative">
+                                <div key={shelfKey} className="relative">
                                   <button
                                     onClick={(e) => handleShelfClick(shelf, e)}
                                     onDoubleClick={() => handleAddItemsClick(shelf)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleShelfClick(shelf, e as any);
+                                      if (e.key === 'A' && (e.ctrlKey || e.metaKey)) handleAddItemsClick(shelf);
+                                      if (e.key === 'R' && (e.ctrlKey || e.metaKey)) handleRemoveItemsClick(shelf);
+                                    }}
+                                    tabIndex={0}
+                                    aria-label={`Rack ${shelf.raftId} shelf ${shelf.shelfId}`}
                                     className={`
-                                      w-full p-3 rounded-lg transition-all duration-200 transform hover:scale-[1.02]
+                                      w-full p-2.5 rounded-lg transition-all duration-200
                                       ${getShelfColor(shelf)}
                                       ${isSelected ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-800' : ''}
-                                      relative z-10 group
+                                      relative z-10 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400
                                     `}
                                   >
-                                    {/* Add Items Icon - shows on hover */}
-                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-xs">
-                                        +
-                                      </div>
+                                    {/* Hover actions */}
+                                    <div className="absolute right-1 top-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); handleAddItemsClick(shelf); }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleAddItemsClick(shelf); } }}
+                                        className="px-1.5 py-0.5 text-[10px] bg-emerald-500/90 hover:bg-emerald-600 text-white rounded cursor-pointer select-none"
+                                        title="Add items"
+                                      >+ Add</span>
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); handleRemoveItemsClick(shelf); }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleRemoveItemsClick(shelf); } }}
+                                        className="px-1.5 py-0.5 text-[10px] bg-rose-500/90 hover:bg-rose-600 text-white rounded cursor-pointer select-none"
+                                        title="Remove items"
+                                      >− Rem</span>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                      <div className="text-left">
-                                        <div className="text-sm font-medium text-white">
-                                          Shelf {shelf.shelfId}
-                                        </div>
-                                        <div className="text-xs text-white/80">
-                                          {shelf.products.length} items
-                                        </div>
+
+                                    {/* Content */}
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-white/90 bg-white/20 px-2 py-0.5 rounded">S{shelf.shelfId}</span>
+                                        <span className="text-[11px] text-white/80">{shelf.products.length} items</span>
                                       </div>
-                                      <div className="text-right">
+                                      <div className="flex items-center gap-2">
                                         {productCount > 0 && (
-                                          <div className="text-xs text-white/90 bg-white/20 px-2 py-1 rounded">
-                                            {productCount} qty
-                                          </div>
+                                          <span className="text-[11px] text-white/90 bg-white/20 px-2 py-0.5 rounded">{productCount} qty</span>
                                         )}
                                       </div>
                                     </div>
-                                    
-                                    {highlightedShelves.has(`${shelf.raftId}-${shelf.shelfId}`) && (
+
+                                    {/* Capacity bar */}
+                                    <div className="mt-2 h-1.5 w-full bg-black/20 rounded overflow-hidden">
+                                      <div
+                                        className={`${usage.pct >= 90 ? 'bg-rose-500' : usage.pct >= 60 ? 'bg-amber-400' : 'bg-emerald-500'} h-full`}
+                                        style={{ width: `${usage.pct}%` }}
+                                      />
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-white/70">
+                                      {usage.qty}/{usage.cap} used
+                                    </div>
+
+                                    {highlightedShelves.has(shelfKey) && (
                                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-ping"></div>
                                     )}
                                   </button>
@@ -710,12 +868,60 @@ const WarehouseVisualization: React.FC = () => {
               {selectedShelf ? (
                 <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl">
                   <div className="px-6 py-4 border-b border-slate-700/50">
-                    <h2 className="text-lg font-medium text-white">
-                      Raft {selectedShelf.raftId} - Shelf {selectedShelf.shelfId}
-                    </h2>
-                    {selectedShelf.location && (
-                      <p className="text-sm text-slate-400">{selectedShelf.location.name}</p>
-                    )}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-medium text-white">
+                          Raft {selectedShelf.raftId} - Shelf {selectedShelf.shelfId}
+                        </h2>
+                        {selectedShelf.location && (
+                          <div className="mt-1 flex items-center gap-2 text-sm flex-wrap">
+                            <span className="text-slate-400 whitespace-nowrap">Rack {selectedShelf.raftId}</span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-400 whitespace-nowrap">Shelf {selectedShelf.shelfId}</span>
+                            <span className="text-slate-500">•</span>
+                            {!editingCapacity ? (
+                              <>
+                                <span className="text-slate-300 whitespace-nowrap">Capacity: {selectedShelf.location.capacity ?? 10}</span>
+                                <button
+                                  onClick={startEditCapacity}
+                                  className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/50 whitespace-nowrap"
+                                >Edit</button>
+                              </>
+                            ) : (
+                              <div className="flex items-center gap-2 whitespace-nowrap">
+                                <span className="text-slate-400">Capacity:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={newCapacity}
+                                  onChange={(e) => setNewCapacity(e.target.value === '' ? '' : Number(e.target.value))}
+                                  className="w-24 px-2 py-1 bg-slate-700/50 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                />
+                                <button
+                                  onClick={saveCapacity}
+                                  className="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  disabled={loading}
+                                >Save</button>
+                                <button
+                                  onClick={cancelEditCapacity}
+                                  className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/50"
+                                >Cancel</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setActionMode('add'); setShowAddItems(true); }}
+                          className="px-3 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >Add Items</button>
+                        <button
+                          onClick={() => { setActionMode('remove'); setShowAddItems(true); }}
+                          className="px-3 py-1.5 text-xs rounded bg-rose-600 hover:bg-rose-700 text-white"
+                        >Remove Items</button>
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="p-6">
@@ -724,7 +930,7 @@ const WarehouseVisualization: React.FC = () => {
                         <h3 className="text-sm font-medium text-slate-300 mb-3">
                           Products ({selectedShelf.products.length})
                         </h3>
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                        <div className="space-y-3 max-h-96 overflow-y-auto nice-scrollbar pr-1">
                           {selectedShelf.products.map((product) => {
                             const locationQuantity = product.locations?.find(loc => {
                               if (!loc || !loc.locationId || !selectedShelf.location || !selectedShelf.location._id) {
@@ -740,19 +946,40 @@ const WarehouseVisualization: React.FC = () => {
                             })?.quantity || 0;
                             
                             return (
-                              <div key={product._id?.toString()} className="bg-slate-700/30 rounded-lg p-3">
-                                <div className="flex justify-between items-start mb-1">
-                                  <h4 className="text-sm font-medium text-white">{product.name}</h4>
-                                  <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded">
-                                    {locationQuantity} qty
-                                  </span>
+                              <button
+                                key={product._id?.toString()}
+                                onClick={() => openProductDetails(product)}
+                                className="w-full text-left bg-slate-700/30 hover:bg-slate-700/50 rounded-lg p-3 transition-colors"
+                              >
+                                <div className="flex gap-3 items-start mb-1">
+                                  <div className="flex-shrink-0">
+                                    {product.images && product.images.length > 0 ? (
+                                      // Using native img to avoid NextImage config inside component tree
+                                      <img
+                                        src={product.images[0]}
+                                        alt={product.name}
+                                        className="h-10 w-10 rounded object-cover border border-slate-600"
+                                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/api/placeholder/40/40'; }}
+                                      />
+                                    ) : (
+                                      <div className="h-10 w-10 rounded bg-slate-600/40 border border-slate-600 flex items-center justify-center text-[10px] text-slate-300">No Img</div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex justify-between items-start">
+                                      <h4 className="text-sm font-medium text-white truncate" title={product.name}>{product.name}</h4>
+                                      <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded">
+                                        {locationQuantity} qty
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-slate-400 mb-0.5 truncate">SKU: {product.sku}</p>
+                                    <p className="text-xs text-slate-400 truncate">{product.category}</p>
+                                    {product.description && (
+                                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{product.description}</p>
+                                    )}
+                                  </div>
                                 </div>
-                                <p className="text-xs text-slate-400 mb-1">SKU: {product.sku}</p>
-                                <p className="text-xs text-slate-400">{product.category}</p>
-                                {product.description && (
-                                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">{product.description}</p>
-                                )}
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
@@ -763,7 +990,7 @@ const WarehouseVisualization: React.FC = () => {
                         <p className="text-slate-400 text-sm">No products in this shelf</p>
                         {selectedShelf.location ? (
                           <p className="text-slate-500 text-xs mt-1">
-                            Capacity: {selectedShelf.location.capacity}
+                            Capacity: {selectedShelf.location.capacity ?? 10}
                           </p>
                         ) : (
                           <p className="text-slate-500 text-xs mt-1">
@@ -788,7 +1015,7 @@ const WarehouseVisualization: React.FC = () => {
           {/* Add/Remove Items Modal */}
           {showAddItems && selectedShelf && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto nice-scrollbar">
                 <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center">
                   <h2 className="text-xl font-semibold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                     {actionMode === 'add' ? 'Add' : 'Remove'} Items — Rack {selectedShelf.raftId} · Shelf {selectedShelf.shelfId}
@@ -929,35 +1156,70 @@ const WarehouseVisualization: React.FC = () => {
               </div>
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {searchResults.map((product) => (
-                    <div key={product._id?.toString()} className="bg-slate-700/30 rounded-lg p-4">
-                      <h3 className="text-sm font-medium text-white mb-2">{product.name}</h3>
-                      <p className="text-xs text-slate-400 mb-2">SKU: {product.sku}</p>
-                      <p className="text-xs text-slate-400 mb-2">Category: {product.category}</p>
-                      {product.locationDetails && product.locationDetails.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-xs text-slate-300 mb-1">Locations:</p>
-                          {product.locationDetails.map((location, index) => {
-                            const locationQuantity = product.locations?.find(loc => 
-                              loc.locationId.toString() === location._id?.toString()
-                            )?.quantity || 0;
-                            
-                            return (
-                              <div key={index} className="text-xs text-cyan-400">
-                                {location.name} ({locationQuantity} qty)
+                  {searchResults.map((product) => {
+                    return (
+                      <button
+                        key={product._id?.toString()}
+                        onClick={() => openProductDetails(product)}
+                        className="text-left bg-slate-700/30 hover:bg-slate-700/50 rounded-lg p-4 transition-colors"
+                      >
+                        <div className="flex gap-3 items-start">
+                          <div className="flex-shrink-0">
+                            {product.images && product.images.length > 0 ? (
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="h-12 w-12 rounded object-cover border border-slate-600"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/api/placeholder/48/48'; }}
+                              />
+                            ) : (
+                              <div className="h-12 w-12 rounded bg-slate-600/40 border border-slate-600 flex items-center justify-center text-[10px] text-slate-300">No Img</div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-medium text-white mb-1 truncate" title={product.name}>{product.name}</h3>
+                            <p className="text-xs text-slate-400 mb-0.5 truncate">SKU: {product.sku}</p>
+                            <p className="text-xs text-slate-400 truncate">Category: {product.category}</p>
+                            {product.locationDetails && product.locationDetails.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-[11px] text-slate-300 mb-1">Locations:</p>
+                                {product.locationDetails.map((location, index) => {
+                                  const locationQuantity = product.locations?.find(loc => 
+                                    loc.locationId.toString() === location._id?.toString()
+                                  )?.quantity || 0;
+                                  return (
+                                    <div key={index} className="text-[11px] text-cyan-400 truncate">
+                                      {location.name} ({locationQuantity} qty)
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
         </div>
       </div>
+      {showProductDetail && detailProduct && (
+        <ProductDetailModal
+          isOpen={showProductDetail}
+          onClose={() => setShowProductDetail(false)}
+          onSuccess={async () => {
+            await fetchWarehouseData();
+          }}
+          product={detailProduct}
+          onEdit={() => {
+            // For now just close; edit flow can be integrated with ProductModal later
+            setShowProductDetail(false);
+          }}
+        />
+      )}
     </div>
   );
 };

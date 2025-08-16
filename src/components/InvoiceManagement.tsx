@@ -26,7 +26,7 @@ interface LocalInvoice {
 
 // Using InvoiceItem from @/types/database
 
-const InvoiceManagement: React.FC = () => {
+const InvoiceManagement: React.FC<{ orderIdFilter?: string }> = ({ orderIdFilter }) => {
   const [invoices, setInvoices] = useState<LocalInvoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,6 +62,21 @@ const InvoiceManagement: React.FC = () => {
     fetchProducts();
   }, []);
 
+  const normalizeId = (val: any): string => {
+    if (!val) return '';
+    try {
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object') {
+        // Try common serializations
+        if (typeof (val as any).toString === 'function') return (val as any).toString();
+        if ((val as any).$oid) return String((val as any).$oid);
+      }
+      return String(val);
+    } catch {
+      return '';
+    }
+  };
+
   const fetchInvoices = async () => {
     try {
       setLoading(true);
@@ -79,40 +94,28 @@ const InvoiceManagement: React.FC = () => {
       
       const data = await response.json();
       
-      // Debug: Log the actual data structure
-      console.log('Invoice data from API:', data);
-      if (data.length > 0) {
-        console.log('First invoice items:', data[0].items);
-      }
-      
-      // If no real data, create a test invoice with correct structure
+      // If no real data, just set empty list (no demo data)
       if (!data || data.length === 0) {
-        const testInvoice: LocalInvoice = {
-          _id: 'test-1',
-          invoiceNumber: 'INV-2025-TEST',
-          customerName: 'Test Customer',
-          customerEmail: 'test@example.com',
-          customerAddress: '123 Test Street, Test City',
-          items: [{
-            productName: 'Test Product',
-            sku: 'TEST-001',
-            quantity: 1,
-            price: 7.00,
-            total: 7.00
-          }],
-          subtotal: 7.00,
-          vatAmount: 1.40,
-          vatRate: 20,
-          total: 8.40,
-          status: 'draft',
-          issueDate: new Date().toISOString(),
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          notes: 'Test invoice with correct data structure'
-        };
-        console.log('Created test invoice data:', testInvoice);
-        setInvoices([testInvoice]);
+        setInvoices([]);
       } else {
-        setInvoices(data);
+        // De-duplicate by orderId: keep the newest (by createdAt) per order
+        const grouped = data.reduce((acc: Record<string, any>, inv: any) => {
+          const key = normalizeId(inv.orderId) || 'no-order';
+          const current = acc[key];
+          const invDate = inv.createdAt ? new Date(inv.createdAt).getTime() : 0;
+          const curDate = current?.createdAt ? new Date(current.createdAt).getTime() : -1;
+          if (!current || invDate >= curDate) acc[key] = inv;
+          return acc;
+        }, {} as Record<string, any>);
+        let deduped = Object.values(grouped) as LocalInvoice[];
+        // Optional filter by selected order
+        if (orderIdFilter) {
+          const filterId = normalizeId(orderIdFilter);
+          deduped = deduped.filter((inv: any) => normalizeId(inv.orderId) === filterId);
+        }
+        // Sort newest first to match existing UI expectations
+        deduped.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setInvoices(deduped);
       }
     } catch (error) {
       setError('Failed to fetch invoices');
@@ -252,7 +255,25 @@ const InvoiceManagement: React.FC = () => {
 
   const handleDelete = async (invoiceId: string) => {
     if (!confirm('Are you sure you want to delete this invoice?')) return;
-    setInvoices(prev => prev.filter(inv => inv._id !== invoiceId));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/invoices/${invoiceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || 'Failed to delete invoice');
+      }
+      // Refresh list after deletion to reflect server state
+      await fetchInvoices();
+    } catch (err) {
+      console.error('Delete invoice error:', err);
+      setError('Failed to delete invoice');
+    }
   };
 
   const resetForm = () => {

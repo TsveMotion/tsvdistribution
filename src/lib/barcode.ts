@@ -66,7 +66,7 @@ export function generateBulkBarcodes(products: Array<{id: string, name: string, 
     <!DOCTYPE html>
     <html>
     <head>
-      <title>TsvDistribution - Professional Barcode Sheet</title>
+      <title>TsvStock - Professional Barcode Sheet</title>
       <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
       <style>
@@ -198,7 +198,7 @@ export function generateBulkBarcodes(products: Array<{id: string, name: string, 
     </head>
     <body>
       <div class="header">
-        <h1>TsvDistribution - Professional Barcode Sheet</h1>
+        <h1>TsvStock - Professional Barcode Sheet</h1>
         <div class="print-info">Generated: ${new Date().toLocaleDateString()} | Products: ${products.length}</div>
       </div>
       
@@ -233,7 +233,7 @@ export function generateBulkBarcodes(products: Array<{id: string, name: string, 
       </div>
       
       <div class="footer">
-        TsvDistribution Inventory Management System | Barcode Sheet
+        TsvStock Inventory Management System | Barcode Sheet
       </div>
       
       <script>

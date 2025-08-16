@@ -73,6 +73,8 @@ const OrderTracking: React.FC = () => {
 
   // Create invoice for an order
   const createInvoiceForOrder = async (orderId: string) => {
+    // Prevent rapid double clicks
+    if (invoiceLoading) return;
     try {
       setInvoiceLoading(true);
       setError(null);
@@ -87,15 +89,23 @@ const OrderTracking: React.FC = () => {
       });
 
       if (res.ok) {
-        const inv: Invoice = await res.json();
-        setOrderInvoice(inv);
+        const data = await res.json();
+        // API returns { message, invoiceId, invoice }
+        setOrderInvoice(data.invoice as Invoice);
         return;
       }
 
       if (res.status === 409) {
-        // Already exists - fetch and set
-        const existing = await fetchInvoiceByOrderId(orderId);
-        setOrderInvoice(existing);
+        // Already exists - use server response if available
+        try {
+          const conflict = await res.json();
+          if (conflict?.invoice) {
+            setOrderInvoice(conflict.invoice as Invoice);
+          } else if (conflict?.invoiceId) {
+            const existing = await fetchInvoiceByOrderId(orderId);
+            setOrderInvoice(existing);
+          }
+        } catch {}
         setError('Invoice already exists for this order.');
         return;
       }
@@ -416,29 +426,7 @@ const OrderTracking: React.FC = () => {
       }
       
       const createdOrder = await response.json();
-
-      // Auto-create invoice for this order
-      try {
-        const invRes = await fetch('/api/invoices', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ orderId: (createdOrder._id || createdOrder.id)?.toString?.() || createdOrder._id || createdOrder.id }),
-        });
-        if (invRes.status === 201) {
-          const invJson = await invRes.json();
-          setOrderInvoice(invJson.invoice);
-        } else if (invRes.status === 409) {
-          const invJson = await invRes.json();
-          // Fetch existing invoice
-          const inv = await fetchInvoiceByOrderId((createdOrder._id || createdOrder.id)?.toString?.());
-          setOrderInvoice(inv || null);
-        }
-      } catch (e) {
-        console.warn('Invoice auto-create failed (non-blocking):', e);
-      }
+      // Removed auto-invoice creation. Invoices are now created only when the user clicks "Create Invoice".
       
       // If tracking number was provided, create tracking via SHIP24
       if (newOrder.trackingNumber && newOrder.carrier) {
@@ -567,7 +555,7 @@ const OrderTracking: React.FC = () => {
         </>
       ) : (
         <div className="mt-4">
-          <InvoiceManagement />
+          <InvoiceManagement orderIdFilter={selectedOrder?._id?.toString()} />
         </div>
       )}
 

@@ -49,7 +49,7 @@ export default function Dashboard() {
             </div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                TsvDistribution
+                TsvStock
               </h1>
               <p className="text-sm text-slate-400">Inventory Management System</p>
             </div>
@@ -125,7 +125,8 @@ function OverviewTab() {
     recentOrders: [] as Order[],
     ordersByStatus: {} as { [key: string]: number },
     inventoryValue: 0,
-    monthlyRevenue: [] as { month: string; revenue: number }[]
+    monthlyRevenue: [] as { month: string; revenue: number }[],
+    lowStockList: [] as { name: string; sku: string; quantity: number; minStockLevel: number }[]
   });
 
   const calculateAnalytics = useCallback((products: Product[], orders: Order[]) => {
@@ -134,7 +135,17 @@ function OverviewTab() {
     const totalOrders = orders.length;
     
     // Low stock items (less than minimum stock level)
-    const lowStockItems = products.filter(p => p.quantity < (p.minStockLevel || 10)).length;
+    const lowStock = products
+      .filter(p => p.quantity < (p.minStockLevel || 10))
+      .map(p => ({
+        name: p.name,
+        sku: p.sku,
+        quantity: p.quantity,
+        minStockLevel: p.minStockLevel || 10,
+      }))
+      .sort((a, b) => (a.quantity - a.minStockLevel) - (b.quantity - b.minStockLevel))
+      .slice(0, 5);
+    const lowStockItems = lowStock.length;
     
     // Revenue calculation
     const totalRevenue = orders
@@ -185,7 +196,8 @@ function OverviewTab() {
       recentOrders,
       ordersByStatus,
       inventoryValue,
-      monthlyRevenue
+      monthlyRevenue,
+      lowStockList: lowStock
     });
   }, []);
 
@@ -358,6 +370,39 @@ function OverviewTab() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Low Stock List */}
+      <div className="grid grid-cols-1 gap-6 mb-8">
+        <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Critical Low Stock</h3>
+            <span className="text-xs text-slate-400">Top 5 by deficit</span>
+          </div>
+          {analytics.lowStockList.length === 0 ? (
+            <p className="text-slate-400 text-center py-6">All good — no low stock items.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {analytics.lowStockList.map(item => {
+                const deficit = Math.max(0, item.minStockLevel - item.quantity);
+                return (
+                  <div key={item.sku} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-white font-medium">{item.name}</p>
+                        <p className="text-xs text-slate-400">{item.sku}</p>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-300">- {deficit}</span>
+                    </div>
+                    <div className="mt-2 text-sm text-slate-300">
+                      Qty: <span className="text-white font-semibold">{item.quantity}</span> · Min: <span className="text-white font-semibold">{item.minStockLevel}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
       

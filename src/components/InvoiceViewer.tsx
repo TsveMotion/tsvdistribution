@@ -146,7 +146,7 @@ const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
           <div className="border-b-2 border-slate-800 pb-3 mb-3">
             <div className="flex justify-between items-start">
               <div>
-                <h1 className="text-2xl font-bold text-slate-800">TsvDistribution</h1>
+                <h1 className="text-2xl font-bold text-slate-800">TsvStock</h1>
                 <p className="text-slate-600 text-sm">Inventory Management System</p>
               </div>
               <div className="text-right">

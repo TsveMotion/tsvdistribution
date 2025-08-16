@@ -15,6 +15,12 @@ export async function GET(request: NextRequest) {
     }
 
     const db = await getDatabase();
+    // Ensure unique index exists (idempotent) to prevent duplicates even under concurrency
+    try {
+      await db.collection<Invoice>('invoices').createIndex({ orderId: 1 }, { unique: true, name: 'uniq_invoice_per_order' });
+    } catch (e) {
+      // ignore index creation races or existing duplicates (will be handled below)
+    }
     // Ensure unique index on orderId to prevent duplicate invoices per order (idempotency)
     try {
       await db.collection<Invoice>('invoices').createIndex({ orderId: 1 }, { unique: true, name: 'uniq_invoice_per_order' });

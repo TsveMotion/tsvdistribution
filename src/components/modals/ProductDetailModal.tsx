@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { Product } from '@/types/database';
-import { XMarkIcon, PhotoIcon, SparklesIcon, PrinterIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, PhotoIcon, SparklesIcon, PrinterIcon, LinkIcon, ClipboardIcon, TagIcon, BanknotesIcon, CubeIcon } from '@heroicons/react/24/outline';
 
 export interface ProductDetailModalProps {
   isOpen: boolean;
@@ -15,11 +15,49 @@ export interface ProductDetailModalProps {
 
 export default function ProductDetailModal({ isOpen, onClose, onSuccess, product, onEdit }: ProductDetailModalProps) {
   const [generatingAI, setGeneratingAI] = useState<'title' | 'description' | 'both' | null>(null);
+  const [generatedTitle, setGeneratedTitle] = useState<string>('');
+  const [generatedDescription, setGeneratedDescription] = useState<string>('');
+  const [savingAI, setSavingAI] = useState<boolean>(false);
+  const [saveMessage, setSaveMessage] = useState<string>('');
 
   const getStockStatus = () => {
     if (product.quantity === 0) return { text: 'Out of Stock', color: 'text-red-400 bg-red-900/20' } as const;
     if (product.quantity <= product.minStockLevel) return { text: 'Low Stock', color: 'text-yellow-400 bg-yellow-900/20' } as const;
     return { text: 'In Stock', color: 'text-green-400 bg-green-900/20' } as const;
+  };
+
+  const persistAIContent = async (updates: { aiGeneratedTitle?: string; aiGeneratedDescription?: string }) => {
+    try {
+      if (!product?._id) return;
+      setSavingAI(true);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const id = typeof product._id === 'string' ? product._id : product._id.toString();
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          ...updates,
+          updatedAt: new Date(),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save AI content');
+      }
+      setSaveMessage('Saved');
+      setTimeout(() => setSaveMessage(''), 1500);
+      // Notify parent to refresh data
+      onSuccess?.();
+    } catch (e) {
+      console.error('Persist AI content error:', e);
+      setSaveMessage('Save failed');
+      setTimeout(() => setSaveMessage(''), 2000);
+    } finally {
+      setSavingAI(false);
+    }
   };
 
   const handleAIGeneration = async (type: 'title' | 'description' | 'both') => {
@@ -34,7 +72,7 @@ export default function ProductDetailModal({ isOpen, onClose, onSuccess, product
         dimensions: product.dimensions,
         price: product.price,
       };
-
+      const id = typeof product._id === 'string' ? product._id : product._id?.toString?.();
       const response = await fetch('/api/products/ai-content', {
         method: 'POST',
         headers: {
@@ -46,7 +84,63 @@ export default function ProductDetailModal({ isOpen, onClose, onSuccess, product
 
       if (response.ok) {
         const result = await response.json();
-        console.log('AI content generated:', result);
+        if (type === 'title') {
+          if (result.title) {
+            setGeneratedTitle(result.title);
+            // Save AI field and overwrite primary name for persistence
+            await persistAIContent({ aiGeneratedTitle: result.title });
+            if (id) await fetch(`/api/products/${id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(typeof window !== 'undefined' && localStorage.getItem('token') && { 'Authorization': `Bearer ${localStorage.getItem('token')}` }),
+              },
+              body: JSON.stringify({ name: result.title }),
+            });
+            onSuccess?.();
+          }
+        } else if (type === 'description') {
+          if (result.description) {
+            setGeneratedDescription(result.description);
+            // Save AI field and overwrite primary description for persistence
+            await persistAIContent({ aiGeneratedDescription: result.description });
+            if (id) await fetch(`/api/products/${id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(typeof window !== 'undefined' && localStorage.getItem('token') && { 'Authorization': `Bearer ${localStorage.getItem('token')}` }),
+              },
+              body: JSON.stringify({ description: result.description }),
+            });
+            onSuccess?.();
+          }
+        } else {
+          const updates: { aiGeneratedTitle?: string; aiGeneratedDescription?: string } = {};
+          if (result.title) {
+            setGeneratedTitle(result.title);
+            updates.aiGeneratedTitle = result.title;
+          }
+          if (result.description) {
+            setGeneratedDescription(result.description);
+            updates.aiGeneratedDescription = result.description;
+          }
+          if (updates.aiGeneratedTitle || updates.aiGeneratedDescription) {
+            await persistAIContent(updates);
+            // Also overwrite primary fields when both present
+            if (id) await fetch(`/api/products/${id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(typeof window !== 'undefined' && localStorage.getItem('token') && { 'Authorization': `Bearer ${localStorage.getItem('token')}` }),
+              },
+              body: JSON.stringify({
+                ...(result.title ? { name: result.title } : {}),
+                ...(result.description ? { description: result.description } : {}),
+              }),
+            });
+            onSuccess?.();
+          }
+        }
       }
     } catch (error) {
       console.error('AI generation error:', error);
@@ -60,19 +154,38 @@ export default function ProductDetailModal({ isOpen, onClose, onSuccess, product
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label={`Product details for ${product.name}`}>
       <div className="bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 border border-slate-600/50 shadow-2xl rounded-3xl w-full max-w-7xl h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-slate-800 via-slate-750 to-slate-800 border-b border-slate-600/50 rounded-t-3xl px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Product Details
-              </h2>
-              <p className="text-slate-400 mt-2 text-lg">View and manage product information</p>
+        <div className="sticky top-0 bg-gradient-to-r from-slate-800 via-slate-750 to-slate-800/95 border-b border-slate-600/50 rounded-t-3xl px-8 py-6">
+          <div className="flex justify-between items-start">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white truncate" title={product.name}>
+                  {product.name}
+                </h2>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  <BanknotesIcon className="h-4 w-4" /> £{product.price.toFixed(2)}
+                </span>
+                {product.category && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-600/30 text-slate-200 border border-slate-500/40">
+                    <TagIcon className="h-4 w-4" /> {product.category}
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-slate-400 text-sm flex-wrap">
+                <span className="font-mono px-2 py-0.5 rounded bg-slate-700/50 border border-slate-600" title="SKU">SKU: {product.sku}</span>
+                {product.barcode && (
+                  <span className="font-mono px-2 py-0.5 rounded bg-slate-700/50 border border-slate-600" title="Barcode">{product.barcode}</span>
+                )}
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${stockStatus.color}`}>
+                  <CubeIcon className="h-4 w-4" /> {stockStatus.text}
+                </span>
+              </div>
             </div>
             <button
               onClick={onClose}
+              aria-label="Close product details"
               className="p-3 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-xl transition-all duration-200 hover:scale-105"
             >
               <XMarkIcon className="h-7 w-7" />
@@ -128,7 +241,7 @@ export default function ProductDetailModal({ isOpen, onClose, onSuccess, product
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-2xl font-bold text-white mb-2">{product.name}</h3>
+                        <h3 className="text-xl font-semibold text-white mb-2">Overview</h3>
                         <div className="flex items-center space-x-4 mb-3">
                           <span className="px-3 py-1 bg-slate-600/50 text-slate-200 rounded-lg text-sm font-mono">
                             SKU: {product.sku}
@@ -149,6 +262,27 @@ export default function ProductDetailModal({ isOpen, onClose, onSuccess, product
                       <div className="mt-4 p-3 bg-slate-800/50 rounded-lg border border-slate-600">
                         <div className="text-slate-400 text-sm mb-1">Barcode</div>
                         <div className="text-white font-mono text-lg">{product.barcode}</div>
+                      </div>
+                    )}
+                    {product.images && product.images.length > 1 && (
+                      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                        {product.images.slice(0, 6).map((img, idx) => (
+                          <img
+                            key={idx}
+                            src={img}
+                            alt={`Thumbnail ${idx + 1}`}
+                            className="h-12 w-12 rounded border border-slate-600 object-cover hover:ring-2 hover:ring-cyan-500 cursor-pointer"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/api/placeholder/48/48'; }}
+                            onClick={() => {
+                              // swap main image to clicked one
+                              if (product.images && product.images.length) {
+                                const first = product.images[0];
+                                product.images[0] = img;
+                                product.images[idx] = first;
+                              }
+                            }}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
@@ -307,25 +441,31 @@ export default function ProductDetailModal({ isOpen, onClose, onSuccess, product
               )}
 
               {/* AI Content */}
-              {(product.aiGeneratedTitle || product.aiGeneratedDescription) && (
+              {(product.aiGeneratedTitle || product.aiGeneratedDescription || generatedTitle || generatedDescription) && (
                 <div className="bg-slate-700/30 border border-slate-600/50 rounded-2xl p-6">
                   <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
                     <SparklesIcon className="h-5 w-5 text-purple-400 mr-2" />
                     AI Generated Content
+                    {savingAI && (
+                      <span className="ml-2 text-xs text-slate-300">Saving…</span>
+                    )}
+                    {!savingAI && saveMessage && (
+                      <span className="ml-2 text-xs text-emerald-300">{saveMessage}</span>
+                    )}
                   </h4>
-                  {product.aiGeneratedTitle && (
+                  {(generatedTitle || product.aiGeneratedTitle) && (
                     <div className="mb-4">
                       <span className="text-slate-400 text-sm">AI Generated Title</span>
                       <div className="text-white font-medium mt-1 p-3 bg-slate-800/50 rounded-lg">
-                        {product.aiGeneratedTitle}
+                        {generatedTitle || product.aiGeneratedTitle}
                       </div>
                     </div>
                   )}
-                  {product.aiGeneratedDescription && (
+                  {(generatedDescription || product.aiGeneratedDescription) && (
                     <div>
                       <span className="text-slate-400 text-sm">AI Generated Description</span>
                       <div className="text-white mt-1 p-3 bg-slate-800/50 rounded-lg leading-relaxed">
-                        {product.aiGeneratedDescription}
+                        {generatedDescription || product.aiGeneratedDescription}
                       </div>
                     </div>
                   )}
@@ -434,6 +574,35 @@ export default function ProductDetailModal({ isOpen, onClose, onSuccess, product
                       <PrinterIcon className="h-4 w-4" />
                       <span>Print Details</span>
                     </button>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(product.sku || '')}
+                      className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-white font-medium transition-colors flex items-center justify-center space-x-2"
+                      aria-label="Copy SKU to clipboard"
+                    >
+                      <ClipboardIcon className="h-4 w-4" />
+                      <span>Copy SKU</span>
+                    </button>
+                    {product.barcode && (
+                      <button
+                        onClick={() => navigator.clipboard.writeText(product.barcode!)}
+                        className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-white font-medium transition-colors flex items-center justify-center space-x-2"
+                        aria-label="Copy Barcode to clipboard"
+                      >
+                        <ClipboardIcon className="h-4 w-4" />
+                        <span>Copy Barcode</span>
+                      </button>
+                    )}
+                    {product.supplierLink && (
+                      <a
+                        href={product.supplierLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full px-4 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-xl text-white font-medium transition-colors flex items-center justify-center space-x-2"
+                      >
+                        <LinkIcon className="h-4 w-4" />
+                        <span>Open Supplier Link</span>
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

@@ -40,6 +40,7 @@ export const InvoicePdfDoc: React.FC<{ invoice: Invoice } & { title?: string }> 
   const formatGBP = (n: number | undefined) => `£${(n || 0).toFixed(2)}`;
   const issue = invoice.issueDate ? new Date(invoice.issueDate) : (invoice.createdAt ? new Date(invoice.createdAt) : undefined);
   const due = invoice.dueDate ? new Date(invoice.dueDate) : undefined;
+  const items = Array.isArray((invoice as any)?.items) ? (invoice as any).items : [];
 
   return (
     <Document>
@@ -70,7 +71,7 @@ export const InvoicePdfDoc: React.FC<{ invoice: Invoice } & { title?: string }> 
             <Text style={[styles.th, styles.right]}>Price</Text>
             <Text style={[styles.th, styles.right]}>Total</Text>
           </View>
-          {invoice.items.map((item, idx) => (
+          {items.map((item: any, idx: number) => (
             <View key={idx} style={styles.row}>
               <Text style={styles.td}>{item.productName}</Text>
               <Text style={styles.td}>{item.sku}</Text>

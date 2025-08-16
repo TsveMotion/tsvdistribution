@@ -123,7 +123,7 @@ export default function HomePage() {
             <FeatureCard
               icon={<DocumentTextIcon className="h-8 w-8" />}
               title="Auto Invoicing"
-              description="Automated invoice generation with TsvDistribution branding and printable formats."
+              description="Automated invoice generation with TsvStock branding and printable formats."
             />
             <FeatureCard
               icon={<ClipboardDocumentListIcon className="h-8 w-8" />}

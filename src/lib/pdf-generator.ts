@@ -1,5 +1,5 @@
 /**
- * PDF Generator for TsvDistribution
+ * PDF Generator for TsvStock
  * 
  * This module provides functionality to generate branded PDF invoices
  * using jsPDF and html2canvas
@@ -29,14 +29,14 @@ export function formatDate(date: Date | string): string {
 // Generate HTML template for the invoice
 export function generateInvoiceHTML(invoice: Invoice): string {
   const companyInfo = {
-    name: 'TsvDistribution Ltd',
+    name: 'TsvStock Ltd',
     address: '123 Tech Park, Innovation Way',
     city: 'London',
     postcode: 'EC1A 1BB',
     country: 'United Kingdom',
     phone: '+44 20 1234 5678',
-    email: 'accounts@tsvdistribution.com',
-    website: 'www.tsvdistribution.com',
+    email: 'accounts@tsvstock.com',
+    website: 'www.tsvstock.com',
     vatNumber: 'GB123456789'
   };
 
@@ -164,7 +164,7 @@ export function generateInvoiceHTML(invoice: Invoice): string {
       <div class="invoice-container">
         <div class="header">
           <div class="logo">
-            TsvDistribution
+            TsvStock
           </div>
           <div class="company-details">
             <div>${companyInfo.name}</div>
@@ -217,11 +217,11 @@ export function generateInvoiceHTML(invoice: Invoice): string {
         <div class="notes">
           <strong>Payment Terms:</strong> Payment due within 30 days of invoice date.
           <br>
-          <strong>Payment Details:</strong> Please make payment to TsvDistribution Ltd, Account: 12345678, Sort Code: 12-34-56
+          <strong>Payment Details:</strong> Please make payment to TsvStock Ltd, Account: 12345678, Sort Code: 12-34-56
         </div>
         
         <div class="footer">
-          Thank you for your business! | www.tsvdistribution.com
+          Thank you for your business! | www.tsvstock.com
         </div>
       </div>
     </body>

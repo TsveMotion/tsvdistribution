@@ -56,7 +56,7 @@ export default function RegisterForm({ onToggleMode, onSuccess }: RegisterFormPr
         <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
           Create Account
         </h2>
-        <p className="text-slate-400 mt-2">Join TsvDistribution today</p>
+        <p className="text-slate-400 mt-2">Join TsvStock today</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

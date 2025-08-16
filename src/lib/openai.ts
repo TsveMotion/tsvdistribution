@@ -23,7 +23,7 @@ export async function generateProductTitle(productInfo: ProductInfo): Promise<st
     throw new Error('OpenAI API key not found in environment variables');
   }
 
-  const prompt = `Generate a professional, SEO-friendly product title for an e-commerce inventory system. 
+  const prompt = `You are writing a marketplace (Vinted-style) listing title. Write a concise, SEO-friendly title focused ONLY on the product. Do not mention any shop names or prices. Use UK English.
 
 Product Details:
 - Name: ${productInfo.name}
@@ -32,16 +32,14 @@ Product Details:
 ${productInfo.supplier ? `- Supplier: ${productInfo.supplier}` : ''}
 ${productInfo.weight ? `- Weight: ${productInfo.weight} kg` : ''}
 ${productInfo.dimensions ? `- Dimensions: ${productInfo.dimensions.length}×${productInfo.dimensions.width}×${productInfo.dimensions.height} cm` : ''}
-${productInfo.price ? `- Price: £${productInfo.price}` : ''}
 
 Requirements:
-- Keep it concise but descriptive (50-80 characters ideal)
-- Include key features/benefits
-- Make it compelling for customers
-- Use proper UK English spelling
-- Focus on what makes this product appealing
+- 50–80 characters, concise yet descriptive
+- Include relevant keywords (brand/model/material/size if applicable)
+- No price, no store/company mentions
+- No emojis in the title
 
-Generate only the title, no additional text.`;
+Return ONLY the title (no quotes, no extra text).`;
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -82,7 +80,7 @@ export async function generateProductDescription(productInfo: ProductInfo): Prom
     throw new Error('OpenAI API key not found in environment variables');
   }
 
-  const prompt = `Generate a detailed, professional product description for an e-commerce inventory system.
+  const prompt = `Write a Vinted-style product description focused ONLY on the product. Do NOT mention any shop name (e.g., TsvStock) or price/discounts. Use UK English.
 
 Product Details:
 - Name: ${productInfo.name}
@@ -91,18 +89,20 @@ Product Details:
 ${productInfo.supplier ? `- Supplier: ${productInfo.supplier}` : ''}
 ${productInfo.weight ? `- Weight: ${productInfo.weight} kg` : ''}
 ${productInfo.dimensions ? `- Dimensions: ${productInfo.dimensions.length}×${productInfo.dimensions.width}×${productInfo.dimensions.height} cm` : ''}
-${productInfo.price ? `- Price: £${productInfo.price}` : ''}
 
-Requirements:
-- Write 2-3 paragraphs (150-300 words)
-- Include key features and benefits
-- Use persuasive but professional language
-- Use proper UK English spelling and currency (£)
-- Include technical specifications if relevant
-- Make it suitable for both B2B and B2C customers
-- End with a brief statement about quality/reliability
+Style & Structure:
+- 120–220 words total
+- Start with a short, SEO-friendly intro sentence (no price, no store)
+- Then a features list using emoji checkmarks like: ✅ Feature, ✅ Benefit
+- Optionally include size/material/fit/specs if present
+- End with a friendly CTA that always mentions fast shipping (e.g., "Fast shipping 🚚💨")
 
-Generate only the description, no additional formatting or titles.`;
+Strict rules:
+- Never mention price, discounts, or company/store names
+- Optimise for search with natural keywords
+- Use emojis only in the bullet list and CTA, not excessively
+
+Return ONLY the description text (no headings or labels).`;
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -146,7 +146,7 @@ export async function generateBothTitleAndDescription(productInfo: ProductInfo):
     throw new Error('OpenAI API key not found in environment variables');
   }
 
-  const prompt = `Generate both a professional product title and detailed description for an e-commerce inventory system.
+  const prompt = `Generate BOTH a Vinted-style product title and description.
 
 Product Details:
 - Name: ${productInfo.name}
@@ -155,22 +155,20 @@ Product Details:
 ${productInfo.supplier ? `- Supplier: ${productInfo.supplier}` : ''}
 ${productInfo.weight ? `- Weight: ${productInfo.weight} kg` : ''}
 ${productInfo.dimensions ? `- Dimensions: ${productInfo.dimensions.length}×${productInfo.dimensions.width}×${productInfo.dimensions.height} cm` : ''}
-${productInfo.price ? `- Price: £${productInfo.price}` : ''}
 
 Please generate:
-1. TITLE: A concise, SEO-friendly product title (50-80 characters)
-2. DESCRIPTION: A detailed product description (150-300 words, 2-3 paragraphs)
+1. TITLE: 50–80 characters, SEO-friendly, no emojis, no price, no store names
+2. DESCRIPTION: 120–220 words, intro + emoji checklist (✅ ...) for features, end with fast shipping mention (e.g., "Fast shipping 🚚💨"). No price or store names.
 
-Requirements:
-- Use proper UK English spelling and currency (£)
-- Make it professional and compelling
-- Include key features and benefits
-- Suitable for both B2B and B2C customers
+Strict rules:
+- Focus ONLY on the product
+- UK English
+- No pricing info or company names (e.g., never mention TsvStock)
 
-Format your response as:
-TITLE: [generated title]
+Format response exactly as:
+TITLE: [title]
 
-DESCRIPTION: [generated description]`;
+DESCRIPTION: [description]`;
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

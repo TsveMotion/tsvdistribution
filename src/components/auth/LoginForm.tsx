@@ -78,7 +78,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
           Welcome Back
         </h2>
-        <p className="text-slate-400 mt-2">Sign in to access TsvDistribution</p>
+        <p className="text-slate-400 mt-2">Sign in to access TsvStock</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
