@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { XMarkIcon, CameraIcon, QrCodeIcon } from '@heroicons/react/24/outline';
+import { BarcodeFormat, DecodeHintType, BinaryBitmap, HybridBinarizer, RGBLuminanceSource, NotFoundException, MultiFormatReader } from '@zxing/library';
 
 interface BarcodeScannerProps {
   isOpen: boolean;
@@ -12,12 +13,12 @@ interface BarcodeScannerProps {
 
 export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan Barcode" }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const readerRef = useRef<MultiFormatReader | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Initialize camera when modal opens
   useEffect(() => {
@@ -36,94 +37,122 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
     try {
       setError(null);
       setIsScanning(true);
-
-      // Request camera permission
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'environment' // Use back camera on mobile
-        }
-      });
-
-      setStream(mediaStream);
+      // Optimistically hide the overlay; will show error if camera fails
       setHasPermission(true);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
-          startScanning();
-        };
+      if (!readerRef.current) {
+        const hints = new Map();
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.QR_CODE,
+        ]);
+        const reader = new MultiFormatReader();
+        reader.setHints(hints);
+        readerRef.current = reader;
       }
+
+      // Ensure the video element is mounted before using it
+      const ensureVideo = async () => {
+        if (videoRef.current) return;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        if (!videoRef.current) {
+          // As a last resort, wait a tick more
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      };
+      await ensureVideo();
+
+      // Prefer back camera on mobile
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      };
+
+      // Start stream manually to eliminate play race conditions
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      if (!videoRef.current) throw new Error('Video element missing');
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setHasPermission(true);
+
+      // ROI decode loop: crop to center overlay area (approx 70% width, 35% height)
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) throw new Error('Canvas not supported');
+
+      const startTime = Date.now();
+      const scanLoop = () => {
+        if (!isScanning || !video || video.readyState < 2) {
+          rafRef.current = requestAnimationFrame(scanLoop);
+          return;
+        }
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+
+        // Define ROI centered, matching UI overlay ratio 64x32 (~2:1)
+        const roiW = Math.floor(vw * 0.7);
+        const roiH = Math.floor(roiW / 2);
+        const roiX = Math.floor((vw - roiW) / 2);
+        const roiY = Math.floor((vh - roiH) / 2);
+
+        canvas.width = roiW;
+        canvas.height = roiH;
+        ctx.drawImage(video, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
+        const imgData = ctx.getImageData(0, 0, roiW, roiH);
+
+        try {
+          const luminance = new RGBLuminanceSource(imgData.data, roiW, roiH);
+          const binarizer = new HybridBinarizer(luminance);
+          const bitmap = new BinaryBitmap(binarizer);
+          const result = readerRef.current!.decode(bitmap);
+          if (result) {
+            onScan(result.getText());
+            stopCamera();
+            onClose();
+            return;
+          }
+        } catch (e) {
+          // Normal: NotFound thrown on most frames
+          if (!(e instanceof NotFoundException)) {
+            // Unexpected error: log once per second
+            if (Date.now() - startTime > 1000) console.warn('Decode error:', e);
+          }
+        }
+
+        // Timeout after 15s to provide feedback
+        if (Date.now() - startTime > 15000) {
+          setError('Could not detect a CODE128 barcode. Try moving closer, increasing brightness, or print the sheet.');
+          setIsScanning(false);
+          return;
+        }
+        rafRef.current = requestAnimationFrame(scanLoop);
+      };
+      rafRef.current = requestAnimationFrame(scanLoop);
     } catch (err) {
-      console.error('Error accessing camera:', err);
+      console.error('Error starting scanner:', err);
       setHasPermission(false);
-      setError('Unable to access camera. Please check permissions.');
+      setError('Unable to access camera. Please check permissions and reload the page.');
       setIsScanning(false);
     }
   };
 
   const stopCamera = () => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-
+    try {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      const stream = streamRef.current;
+      stream?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    } catch {}
     setIsScanning(false);
   };
-
-  const startScanning = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    // Use willReadFrequently for better performance with frequent getImageData calls
-    const context = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D | null;
-
-    if (!context) return;
-
-    // Set canvas size to match video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    // Start scanning interval
-    scanIntervalRef.current = setInterval(() => {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        // Draw video frame to canvas
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // Get image data for processing
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // Try to decode barcode from image data
-        try {
-          const result = processBarcodeData(imageData);
-          if (result) {
-            onScan(result);
-            stopCamera();
-            onClose();
-          }
-        } catch (error) {
-          // Continue scanning if no barcode found
-        }
-      }
-    }, 100); // Scan every 100ms
-  };
-
-  // Basic barcode processing - this is a simplified version
-  // In production, you'd use a proper barcode scanning library like ZXing or QuaggaJS
-  const processBarcodeData = (imageData: ImageData): string | null => {
-    // This is a placeholder for actual barcode detection
-    // For now, we'll simulate manual input or use keyboard input
-    return null;
-  };
+  // ZXing handles decoding directly from the video stream; no manual canvas processing needed.
 
   const handleManualInput = (input: string) => {
     if (input.trim()) {
@@ -173,14 +202,12 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
           {/* Camera Section */}
           <div className="relative">
             <div className="aspect-video bg-slate-900 rounded-2xl overflow-hidden border border-slate-600/50 relative">
-              {hasPermission && (
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  muted
-                />
-              )}
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                playsInline
+                muted
+              />
               
               {/* Scanning overlay */}
               {isScanning && (
@@ -216,8 +243,7 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
               )}
             </div>
 
-            {/* Hidden canvas for processing */}
-            <canvas ref={canvasRef} className="hidden" />
+            {/* No canvas needed; decoding is handled by ZXing directly from the video */}
           </div>
 
           {/* Manual Input Section */}
