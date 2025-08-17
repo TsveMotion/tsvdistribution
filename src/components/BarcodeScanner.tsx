@@ -2,7 +2,8 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { XMarkIcon, CameraIcon, QrCodeIcon } from '@heroicons/react/24/outline';
-import { BarcodeFormat, DecodeHintType, BinaryBitmap, HybridBinarizer, RGBLuminanceSource, NotFoundException, MultiFormatReader } from '@zxing/library';
+import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
+import { NotFoundException, Result, BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 interface BarcodeScannerProps {
   isOpen: boolean;
@@ -16,9 +17,8 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const readerRef = useRef<MultiFormatReader | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
 
   // Initialize camera when modal opens
   useEffect(() => {
@@ -57,17 +57,19 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
         return;
       }
 
-      if (!readerRef.current) {
-        const hints = new Map();
-        hints.set(DecodeHintType.TRY_HARDER, true);
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-          BarcodeFormat.CODE_128,
-          BarcodeFormat.QR_CODE,
-        ]);
-        const reader = new MultiFormatReader();
-        reader.setHints(hints);
-        readerRef.current = reader;
-      }
+      // Build hints to favor CODE_128 and try harder (include common 1D formats as fallback)
+      const hints = new Map();
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.CODE_39,
+      ]);
+
+      // Create reader with hints
+      readerRef.current = new BrowserMultiFormatReader(hints);
 
       // Ensure the video element is mounted before using it
       const ensureVideo = async () => {
@@ -80,94 +82,61 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
       };
       await ensureVideo();
 
-      // Prefer back camera on mobile
+      // Prefer back camera on mobile via constraints. Falls back to first device if needed.
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
         audio: false,
       };
 
-      // Start stream manually to eliminate play race conditions
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      if (!videoRef.current) throw new Error('Video element missing');
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
-      setHasPermission(true);
-
-      // ROI decode loop: try both barcode-optimized (2:1) and QR-optimized (square) crops
-      const video = videoRef.current;
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) throw new Error('Canvas not supported');
-
-      const startTime = Date.now();
-      let frameCount = 0;
-
-      const tryDecode = (sx: number, sy: number, sw: number, sh: number) => {
-        canvas.width = sw;
-        canvas.height = sh;
-        ctx.drawImage(video!, sx, sy, sw, sh, 0, 0, sw, sh);
-        const imgData = ctx.getImageData(0, 0, sw, sh);
-        const luminance = new RGBLuminanceSource(imgData.data, sw, sh);
-        const binarizer = new HybridBinarizer(luminance);
-        const bitmap = new BinaryBitmap(binarizer);
-        return readerRef.current!.decode(bitmap);
-      };
-
-      const scanLoop = () => {
-        if (!isScanning || !video || video.readyState < 2) {
-          rafRef.current = requestAnimationFrame(scanLoop);
-          return;
-        }
-        const vw = video.videoWidth || 1280;
-        const vh = video.videoHeight || 720;
-
+      try {
+        controlsRef.current = await readerRef.current.decodeFromConstraints(
+          constraints,
+          videoRef.current!,
+          (res?: Result, err?: unknown, controls?: IScannerControls) => {
+            if (controls) controlsRef.current = controls;
+            if (res) {
+              onScan(res.getText());
+              stopCamera();
+              onClose();
+            } else if (err && !(err instanceof NotFoundException)) {
+              console.warn('Scanner error:', err);
+            }
+          }
+        );
+        setHasPermission(true);
+        return;
+      } catch (e) {
+        // Fallback to explicit device selection (first available)
         try {
-          // 1) 1D barcode ROI (2:1)
-          const bw = Math.floor(vw * 0.7);
-          const bh = Math.floor(bw / 2);
-          const bx = Math.floor((vw - bw) / 2);
-          const by = Math.floor((vh - bh) / 2);
-          let result = tryDecode(bx, by, bw, bh);
-          if (!result) {
-            // 2) QR ROI (square ~60% of min dimension)
-            const side = Math.floor(Math.min(vw, vh) * 0.6);
-            const qx = Math.floor((vw - side) / 2);
-            const qy = Math.floor((vh - side) / 2);
-            result = tryDecode(qx, qy, side, side);
-          }
-          if (!result && frameCount % 12 === 0) {
-            // 3) Periodic full-frame attempt (every ~12 frames)
-            result = tryDecode(0, 0, vw, vh);
-          }
-          if (result) {
-            onScan(result.getText());
-            stopCamera();
-            onClose();
-            return;
-          }
-        } catch (e) {
-          // Normal: NotFound thrown on most frames
-          if (!(e instanceof NotFoundException)) {
-            // Unexpected error: log once per second
-            if (Date.now() - startTime > 1000) console.warn('Decode error:', e);
-          }
-        }
-
-        frameCount++;
-        // Timeout after 15s to provide feedback
-        if (Date.now() - startTime > 15000) {
-          setError('Could not detect a CODE128 barcode. Try moving closer, increasing brightness, or print the sheet.');
+          const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+          const deviceId = devices[0]?.deviceId;
+          if (!deviceId) throw new Error('No camera found');
+          controlsRef.current = await readerRef.current.decodeFromVideoDevice(
+            deviceId,
+            videoRef.current!,
+            (res?: Result, err?: unknown, controls?: IScannerControls) => {
+              if (controls) controlsRef.current = controls;
+              if (res) {
+                onScan(res.getText());
+                stopCamera();
+                onClose();
+              } else if (err && !(err instanceof NotFoundException)) {
+                console.warn('Scanner error:', err);
+              }
+            }
+          );
+          setHasPermission(true);
+        } catch (e2: any) {
+          console.error('Failed to start camera:', e2);
+          setError(e2?.message || 'Failed to start camera');
+          setHasPermission(false);
           setIsScanning(false);
-          return;
         }
-        rafRef.current = requestAnimationFrame(scanLoop);
-      };
-      rafRef.current = requestAnimationFrame(scanLoop);
+      }
     } catch (err) {
       console.error('Error starting scanner:', err);
       setHasPermission(false);
@@ -178,14 +147,12 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
 
   const stopCamera = () => {
     try {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      const stream = streamRef.current;
-      stream?.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
+      controlsRef.current?.stop();
+      controlsRef.current = null;
     } catch {}
     setIsScanning(false);
   };
-  // ZXing handles decoding directly from the video stream; no manual canvas processing needed.
+  // ZXing handles decoding directly from the video stream via @zxing/browser.
 
   const handleManualInput = (input: string) => {
     if (input.trim()) {
