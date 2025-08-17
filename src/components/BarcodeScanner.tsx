@@ -84,7 +84,8 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+    // Use willReadFrequently for better performance with frequent getImageData calls
+    const context = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D | null;
 
     if (!context) return;
 

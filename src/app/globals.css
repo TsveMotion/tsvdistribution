@@ -25,6 +25,11 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Prevent any horizontal scrolling globally */
+html, body {
+  overflow-x: hidden;
+}
+
 /* Nice minimalist scrollbar for dark UI */
 .nice-scrollbar {
   /* Firefox */

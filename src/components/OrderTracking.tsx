@@ -489,7 +489,7 @@ const OrderTracking: React.FC = () => {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="relative z-10 p-6">
+      <div className="relative z-10 px-4 md:px-6 py-4 md:py-6">
         <div className="max-w-7xl mx-auto">
           {error && (
             <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 text-red-300 rounded-xl backdrop-blur-sm">
@@ -500,13 +500,13 @@ const OrderTracking: React.FC = () => {
           {/* Header + Tabs */}
           <div className="flex flex-col gap-4 mb-6">
             <div className="flex justify-between items-center">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 Orders & Invoices
               </h1>
               {activeTab === 'orders' && (
                 <button
                   onClick={() => setShowCreateOrder(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg shadow-cyan-500/25"
+                  className="px-4 py-2.5 md:px-6 md:py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold rounded-xl text-sm md:text-base transition-all duration-200 transform hover:scale-105 shadow-lg shadow-cyan-500/25"
                 >
                   Create New Order
                 </button>
@@ -515,11 +515,11 @@ const OrderTracking: React.FC = () => {
             <div className="inline-flex bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden w-fit">
               <button
                 onClick={() => setActiveTab('orders')}
-                className={`px-4 py-2 text-sm ${activeTab === 'orders' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700/40'}`}
+                className={`px-3 md:px-4 py-2 text-xs md:text-sm ${activeTab === 'orders' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700/40'}`}
               >Orders</button>
               <button
                 onClick={() => setActiveTab('invoices')}
-                className={`px-4 py-2 text-sm ${activeTab === 'invoices' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700/40'}`}
+                className={`px-3 md:px-4 py-2 text-xs md:text-sm ${activeTab === 'invoices' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700/40'}`}
               >Invoices</button>
             </div>
           </div>
@@ -575,7 +575,7 @@ const OrderTracking: React.FC = () => {
               </div>
             )}
 
-            <div className="divide-y divide-slate-700/50 max-h-96 overflow-y-auto">
+            <div className="divide-y divide-slate-700/50 max-h-[50vh] md:max-h-96 overflow-y-auto">
               {filteredOrders.map((order) => (
                 <div
                   key={order._id?.toString()}

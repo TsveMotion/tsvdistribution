@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import InventoryManagement from './InventoryManagement';
 import OrderTracking from './OrderTracking';
 import WarehouseVisualization from './WarehouseVisualization';
@@ -20,6 +21,7 @@ import {
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
   UsersIcon,
+  QrCodeIcon,
 } from '@heroicons/react/24/outline';
 
 type TabType = 'overview' | 'inventory' | 'orders' | 'locations' | 'users' | 'settings';
@@ -27,6 +29,9 @@ type TabType = 'overview' | 'inventory' | 'orders' | 'locations' | 'users' | 'se
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  // Mobile sidebar toggle
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
 
   const tabs = [
     { id: 'overview' as TabType, name: 'Overview', icon: HomeIcon },
@@ -39,29 +44,39 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white overflow-x-hidden w-full">
       {/* Header */}
-      <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center space-x-4">
-            <div className="w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <CubeIcon className="h-6 w-6 text-white" />
+      <header className="sticky top-0 z-30 bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50">
+        <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4">
+          <div className="flex items-center gap-3">
+            {/* Mobile hamburger */}
+            <button
+              className="md:hidden p-2 rounded-lg hover:bg-slate-700/40 text-slate-200"
+              aria-label="Open menu"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <CubeIcon className="h-5 w-5 md:h-6 md:w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+              <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 TsvStock
               </h1>
-              <p className="text-sm text-slate-400">Inventory Management System</p>
+              <p className="hidden sm:block text-xs md:text-sm text-slate-400">Inventory Management System</p>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-white">{user?.name}</p>
-              <p className="text-xs text-slate-400 capitalize">{user?.role}</p>
+
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-xs md:text-sm font-medium text-white">{user?.name}</p>
+              <p className="text-[10px] md:text-xs text-slate-400 capitalize">{user?.role}</p>
             </div>
-            <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center">
-              <UserCircleIcon className="h-6 w-6 text-slate-300" />
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-slate-700 rounded-full flex items-center justify-center">
+              <UserCircleIcon className="h-5 w-5 md:h-6 md:w-6 text-slate-300" />
             </div>
             <button
               onClick={logout}
@@ -74,9 +89,9 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <nav className="w-64 bg-slate-800/30 backdrop-blur-xl min-h-screen p-6">
+      <div className="flex w-full overflow-x-hidden">
+        {/* Desktop Sidebar */}
+        <nav className="hidden md:block w-64 bg-slate-800/30 backdrop-blur-xl min-h-[calc(100vh-56px)] md:min-h-[calc(100vh-64px)] p-4 md:p-6">
           <div className="space-y-2">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -84,7 +99,7 @@ export default function Dashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                  className={`w-full flex items-center space-x-3 px-3 md:px-4 py-2.5 md:py-3 rounded-xl transition-all duration-200 ${
                     activeTab === tab.id
                       ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 text-cyan-400'
                       : 'text-slate-400 hover:text-white hover:bg-slate-700/30'
@@ -95,11 +110,81 @@ export default function Dashboard() {
                 </button>
               );
             })}
+            <div className="pt-2">
+              <button
+                onClick={() => router.push('/scan')}
+                className="w-full flex items-center space-x-3 px-3 md:px-4 py-2.5 md:py-3 rounded-xl transition-all duration-200 text-slate-200 hover:text-white hover:bg-slate-700/30 border border-transparent hover:border-cyan-500/30"
+              >
+                <QrCodeIcon className="h-5 w-5 text-cyan-400" />
+                <span className="font-medium">Scan</span>
+              </button>
+            </div>
           </div>
         </nav>
 
+        {/* Mobile Slide-over Sidebar */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-40">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <div className="relative w-72 max-w-[80%] h-full bg-slate-900 border-r border-slate-700 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center">
+                    <CubeIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <span className="text-lg font-semibold">TsvStock</span>
+                </div>
+                <button
+                  className="p-2 rounded-lg hover:bg-slate-700/40"
+                  aria-label="Close menu"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-2">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
+                        activeTab === tab.id
+                          ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 text-cyan-400'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-700/30'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span className="font-medium">{tab.name}</span>
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => {
+                    router.push('/scan');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 text-slate-300 hover:text-white hover:bg-slate-700/30"
+                >
+                  <QrCodeIcon className="h-5 w-5 text-cyan-400" />
+                  <span className="font-medium">Scan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 overflow-x-hidden w-full">
           {activeTab === 'overview' && <OverviewTab />}
           {activeTab === 'inventory' && <InventoryTab />}
           {activeTab === 'orders' && <OrdersTab />}
@@ -108,6 +193,33 @@ export default function Dashboard() {
           {activeTab === 'users' && user?.email === 'kristiyan@tsvstock.com' && <UsersTab />}
           {activeTab === 'settings' && <Settings />}
         </main>
+      </div>
+
+      {/* Mobile bottom tab bar */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-slate-700/60 bg-slate-900/80 backdrop-blur">
+        <div className="grid grid-cols-6">
+          <button
+            onClick={() => router.push('/scan')}
+            className="flex flex-col items-center justify-center py-3 text-xs text-slate-300"
+          >
+            <QrCodeIcon className="h-5 w-5 mb-1 text-cyan-400" />
+            Scan
+          </button>
+          {tabs.slice(0,5).map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex flex-col items-center justify-center py-3 text-xs ${active ? 'text-cyan-400' : 'text-slate-300'}`}
+              >
+                <Icon className={`h-5 w-5 mb-1 ${active ? 'text-cyan-400' : 'text-slate-400'}`} />
+                {tab.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
