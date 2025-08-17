@@ -40,6 +40,23 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
       // Optimistically hide the overlay; will show error if camera fails
       setHasPermission(true);
 
+      // Runtime guards: only proceed if camera APIs are available
+      if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+        setHasPermission(false);
+        setIsScanning(false);
+        setError('Camera API is not available in this environment.');
+        return;
+      }
+      const insecure = (window as any).isSecureContext === false && window.location.hostname !== 'localhost';
+      if (!('mediaDevices' in navigator) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setHasPermission(false);
+        setIsScanning(false);
+        setError(insecure
+          ? 'Camera requires HTTPS or localhost. Open the app on https:// (e.g., via ngrok) or use http://localhost:3000.'
+          : 'Camera API not supported by this browser/device. Try a different browser or device.');
+        return;
+      }
+
       if (!readerRef.current) {
         const hints = new Map();
         hints.set(DecodeHintType.TRY_HARDER, true);
@@ -81,13 +98,26 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
       await videoRef.current.play();
       setHasPermission(true);
 
-      // ROI decode loop: crop to center overlay area (approx 70% width, 35% height)
+      // ROI decode loop: try both barcode-optimized (2:1) and QR-optimized (square) crops
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) throw new Error('Canvas not supported');
 
       const startTime = Date.now();
+      let frameCount = 0;
+
+      const tryDecode = (sx: number, sy: number, sw: number, sh: number) => {
+        canvas.width = sw;
+        canvas.height = sh;
+        ctx.drawImage(video!, sx, sy, sw, sh, 0, 0, sw, sh);
+        const imgData = ctx.getImageData(0, 0, sw, sh);
+        const luminance = new RGBLuminanceSource(imgData.data, sw, sh);
+        const binarizer = new HybridBinarizer(luminance);
+        const bitmap = new BinaryBitmap(binarizer);
+        return readerRef.current!.decode(bitmap);
+      };
+
       const scanLoop = () => {
         if (!isScanning || !video || video.readyState < 2) {
           rafRef.current = requestAnimationFrame(scanLoop);
@@ -96,22 +126,24 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
         const vw = video.videoWidth || 1280;
         const vh = video.videoHeight || 720;
 
-        // Define ROI centered, matching UI overlay ratio 64x32 (~2:1)
-        const roiW = Math.floor(vw * 0.7);
-        const roiH = Math.floor(roiW / 2);
-        const roiX = Math.floor((vw - roiW) / 2);
-        const roiY = Math.floor((vh - roiH) / 2);
-
-        canvas.width = roiW;
-        canvas.height = roiH;
-        ctx.drawImage(video, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
-        const imgData = ctx.getImageData(0, 0, roiW, roiH);
-
         try {
-          const luminance = new RGBLuminanceSource(imgData.data, roiW, roiH);
-          const binarizer = new HybridBinarizer(luminance);
-          const bitmap = new BinaryBitmap(binarizer);
-          const result = readerRef.current!.decode(bitmap);
+          // 1) 1D barcode ROI (2:1)
+          const bw = Math.floor(vw * 0.7);
+          const bh = Math.floor(bw / 2);
+          const bx = Math.floor((vw - bw) / 2);
+          const by = Math.floor((vh - bh) / 2);
+          let result = tryDecode(bx, by, bw, bh);
+          if (!result) {
+            // 2) QR ROI (square ~60% of min dimension)
+            const side = Math.floor(Math.min(vw, vh) * 0.6);
+            const qx = Math.floor((vw - side) / 2);
+            const qy = Math.floor((vh - side) / 2);
+            result = tryDecode(qx, qy, side, side);
+          }
+          if (!result && frameCount % 12 === 0) {
+            // 3) Periodic full-frame attempt (every ~12 frames)
+            result = tryDecode(0, 0, vw, vh);
+          }
           if (result) {
             onScan(result.getText());
             stopCamera();
@@ -126,6 +158,7 @@ export default function BarcodeScanner({ isOpen, onClose, onScan, title = "Scan 
           }
         }
 
+        frameCount++;
         // Timeout after 15s to provide feedback
         if (Date.now() - startTime > 15000) {
           setError('Could not detect a CODE128 barcode. Try moving closer, increasing brightness, or print the sheet.');
