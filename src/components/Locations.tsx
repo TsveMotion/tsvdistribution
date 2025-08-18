@@ -266,14 +266,14 @@ const Locations: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white relative overflow-hidden">
+    <div className="h-full min-h-0 bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white relative overflow-hidden">
       {/* Background Effects */}
       <div className="absolute inset-0">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="relative z-10 p-6">
+      <div className="relative z-10 p-6 h-full min-h-0">
         <div className="max-w-7xl mx-auto">
           {error && (
             <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 text-red-300 rounded-xl backdrop-blur-sm">
@@ -423,7 +423,7 @@ const Locations: React.FC = () => {
                   </div>
                 )}
 
-                <div className="divide-y divide-slate-700/50 max-h-96 overflow-y-auto">
+                <div className="divide-y divide-slate-700/50 max-h-96 overflow-y-auto nice-scrollbar">
                   {filteredLocations.map((location) => (
                     <div
                       key={location._id?.toString()}

@@ -3,6 +3,13 @@ import { getDatabase } from '@/lib/mongodb';
 import { Product } from '@/types/database';
 import { ObjectId } from 'mongodb';
 import { getUserFromToken } from '@/lib/auth';
+import { cacheGetOrSet } from '@/lib/cache';
+import { productKey, stockKey, PRODUCTS_VERSION_KEY } from '@/lib/cacheKeys';
+import { TTL } from '@/lib/cacheTtl';
+import { redis } from '@/lib/redis';
+import { rateLimit } from '@/lib/rateLimit';
+
+export const runtime = 'nodejs';
 
 // GET a single product by ID
 export async function GET(
@@ -25,19 +32,36 @@ export async function GET(
       );
     }
 
-    const db = await getDatabase();
-    const product = await db.collection<Product>('products').findOne({
-      _id: new ObjectId(id),
-    });
+    // Rate limit
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const allowed = await rateLimit(ip, 120, 60);
+    if (!allowed) return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
 
-    if (!product) {
-      return NextResponse.json(
-        { error: 'Product not found' },
-        { status: 404 }
-      );
+    const db = await getDatabase();
+
+    // We don't know sku yet; fetcher reads doc, then cache by sku if available else by id fallback
+    const fetcher = async () => {
+      const doc = await db.collection<Product>('products').findOne({ _id: new ObjectId(id) });
+      if (!doc) return null as any;
+      return doc;
+    };
+
+    const fresh = request.nextUrl.searchParams.get('fresh') === '1';
+    const direct = await fetcher();
+    if (fresh) {
+      if (direct) {
+        const k = direct.sku ? productKey(direct.sku) : `products:id:${id}`;
+        await redis.set(k, direct, { ex: TTL.PRODUCT });
+      }
+      if (!direct) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      return NextResponse.json(direct);
     }
 
-    return NextResponse.json(product);
+    // Prefer key by sku when possible; if not, use id key as fallback
+    const primaryKey = direct?.sku ? productKey(direct.sku) : `products:id:${id}`;
+    const data = await cacheGetOrSet(primaryKey, fetcher, TTL.PRODUCT);
+    if (!data) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching product:', error);
     return NextResponse.json(
@@ -133,6 +157,17 @@ export async function PUT(
     const updatedProduct = await db.collection<Product>('products').findOne({
       _id: new ObjectId(id),
     });
+
+    // Write-through cache for product and stock keys
+    if (updatedProduct) {
+      const k = updatedProduct.sku ? productKey(updatedProduct.sku) : `products:id:${id}`;
+      await redis.set(k, updatedProduct, { ex: TTL.PRODUCT });
+      if (typeof (updatedProduct as any).quantity === 'number') {
+        await redis.set(stockKey(updatedProduct.sku ?? id), (updatedProduct as any).quantity, { ex: TTL.STOCK });
+      }
+      // Invalidate versioned product lists
+      await redis.incr(PRODUCTS_VERSION_KEY);
+    }
 
     return NextResponse.json({
       message: 'Product updated successfully',

@@ -39,12 +39,12 @@ export default function Dashboard() {
     { id: 'orders' as TabType, name: 'Orders', icon: ClipboardDocumentListIcon },
     { id: 'locations' as TabType, name: 'Locations', icon: BuildingStorefrontIcon },
     // Only show Users tab to the specific admin user
-    ...(user?.email === 'kristiyan@tsvstock.com' ? [{ id: 'users' as TabType, name: 'Users', icon: UsersIcon }] : []),
+    ...(user?.email === 'tsvetozarkt@gmail.com' ? [{ id: 'users' as TabType, name: 'Users', icon: UsersIcon }] : []),
     { id: 'settings' as TabType, name: 'Settings', icon: Cog6ToothIcon },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white overflow-x-hidden w-full">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white overflow-hidden w-full flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50">
         <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4">
@@ -89,9 +89,9 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="flex w-full overflow-x-hidden">
+      <div className="flex w-full flex-1 min-h-0 overflow-hidden">
         {/* Desktop Sidebar */}
-        <nav className="hidden md:block w-64 bg-slate-800/30 backdrop-blur-xl min-h-[calc(100vh-56px)] md:min-h-[calc(100vh-64px)] p-4 md:p-6">
+        <nav className="hidden md:block w-64 bg-slate-800/30 backdrop-blur-xl h-full p-4 md:p-6 sticky top-0 overflow-hidden">
           <div className="space-y-2">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -184,13 +184,13 @@ export default function Dashboard() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 overflow-x-hidden w-full">
+        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 overflow-y-auto w-full nice-scrollbar">
           {activeTab === 'overview' && <OverviewTab />}
           {activeTab === 'inventory' && <InventoryTab />}
           {activeTab === 'orders' && <OrdersTab />}
           {activeTab === 'locations' && <LocationsTab />}
           {/* Invoices tab removed; invoices are now managed inside Orders */}
-          {activeTab === 'users' && user?.email === 'kristiyan@tsvstock.com' && <UsersTab />}
+          {activeTab === 'users' && user?.email === 'tsvetozarkt@gmail.com' && <UsersTab />}
           {activeTab === 'settings' && <Settings />}
         </main>
       </div>

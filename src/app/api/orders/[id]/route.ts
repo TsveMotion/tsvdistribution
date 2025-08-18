@@ -3,6 +3,14 @@ import { getDatabase } from '@/lib/mongodb';
 import { Order } from '@/types/database';
 import { ObjectId } from 'mongodb';
 import { getUserFromToken } from '@/lib/auth';
+import { cacheGetOrSet } from '@/lib/cache';
+import { orderKey } from '@/lib/cacheKeys';
+import { TTL } from '@/lib/cacheTtl';
+import { rateLimit } from '@/lib/rateLimit';
+import { redis } from '@/lib/redis';
+
+// Note: Keeping Node runtime due to MongoDB Node driver usage.
+export const runtime = 'nodejs';
 
 // GET a single order by ID
 export async function GET(
@@ -25,19 +33,40 @@ export async function GET(
       );
     }
 
-    const db = await getDatabase();
-    const order = await db.collection<Order>('orders').findOne({
-      _id: new ObjectId(id),
-    });
+    // Basic rate limit per IP
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const allowed = await rateLimit(ip, 60, 60); // 60 req/min
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
+    }
 
-    if (!order) {
+    const fresh = request.nextUrl.searchParams.get('fresh') === '1';
+
+    const db = await getDatabase();
+    const key = orderKey(id);
+
+    const fetcher = async () => {
+      const doc = await db.collection<Order>('orders').findOne({ _id: new ObjectId(id) });
+      if (!doc) return null as any;
+      return doc;
+    };
+
+    const data = fresh
+      ? await (async () => {
+          const val = await fetcher();
+          if (val) await redis.set(key, val, { ex: TTL.ORDER });
+          return val;
+        })()
+      : await cacheGetOrSet(key, fetcher, TTL.ORDER);
+
+    if (!data) {
       return NextResponse.json(
         { error: 'Order not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(order);
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching order:', error);
     return NextResponse.json(
@@ -66,6 +95,13 @@ export async function PUT(
         { error: 'Invalid order ID format' },
         { status: 400 }
       );
+    }
+
+    // Rate limit writes as well
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const allowed = await rateLimit(ip, 30, 60); // 30 writes/min
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
     }
 
     const updateData = await request.json();
@@ -122,6 +158,11 @@ export async function PUT(
     const updatedOrder = await db.collection<Order>('orders').findOne({
       _id: new ObjectId(id),
     });
+
+    // Write-through cache: refresh individual order key
+    if (updatedOrder) {
+      await redis.set(orderKey(id), updatedOrder, { ex: TTL.ORDER });
+    }
 
     return NextResponse.json({
       message: 'Order updated successfully',

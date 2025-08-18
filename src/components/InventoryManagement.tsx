@@ -30,6 +30,8 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  // sortOption: 'default' | 'stock-asc' | 'stock-desc' | 'price-asc' | 'price-desc'
+  const [sortOption, setSortOption] = useState<'default' | 'stock-asc' | 'stock-desc' | 'price-asc' | 'price-desc'>('default');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -81,6 +83,22 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
                          product.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === '' || product.category === filterCategory;
     return matchesSearch && matchesCategory;
+  });
+
+  // Sorting
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortOption) {
+      case 'stock-asc':
+        return (a.quantity ?? 0) - (b.quantity ?? 0);
+      case 'stock-desc':
+        return (b.quantity ?? 0) - (a.quantity ?? 0);
+      case 'price-asc':
+        return (a.price ?? 0) - (b.price ?? 0);
+      case 'price-desc':
+        return (b.price ?? 0) - (a.price ?? 0);
+      default:
+        return 0;
+    }
   });
 
   // Get unique categories for filter
@@ -264,8 +282,8 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
             </div>
           </div>
           
-          {/* Search and Filter Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
+          {/* Search, Filter and Sort Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
             <div className="relative">
               <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
               <input
@@ -289,19 +307,32 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
                 ))}
               </select>
             </div>
+            <div className="relative">
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as any)}
+                className="w-full pl-4 pr-8 py-2.5 md:py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-sm md:text-base"
+              >
+                <option value="default">Sort: Default</option>
+                <option value="stock-asc">Sort: Stock (Low → High)</option>
+                <option value="stock-desc">Sort: Stock (High → Low)</option>
+                <option value="price-asc">Sort: Price (Low → High)</option>
+                <option value="price-desc">Sort: Price (High → Low)</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Products - Mobile Cards (sm) */}
       <div className="md:hidden bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-xl overflow-hidden">
-        {filteredProducts.length === 0 ? (
+        {sortedProducts.length === 0 ? (
           <div className="p-6 text-center text-slate-400">
             {products.length === 0 ? 'No products found. Add your first product to get started.' : 'No products match your search criteria.'}
           </div>
         ) : (
           <ul className="divide-y divide-slate-700/50">
-            {filteredProducts.map((product) => {
+            {sortedProducts.map((product) => {
               const status = getStockLevelStatus(product.quantity, product.minStockLevel);
               const productId = product._id?.toString() || '';
               const selected = selectedProductIds.includes(productId);
@@ -418,7 +449,7 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
 
       {/* Products Table (md+) */}
       <div className="hidden md:block bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden">
-        {filteredProducts.length === 0 ? (
+        {sortedProducts.length === 0 ? (
           <div className="p-8 text-center text-slate-400">
             {products.length === 0 ? 'No products found. Add your first product to get started.' : 'No products match your search criteria.'}
           </div>
@@ -430,10 +461,10 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
                   <th className="px-4 py-4 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0}
+                      checked={selectedProductIds.length === sortedProducts.length && sortedProducts.length > 0}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedProductIds(filteredProducts.map(p => p._id!.toString()));
+                          setSelectedProductIds(sortedProducts.map(p => p._id!.toString()));
                         } else {
                           setSelectedProductIds([]);
                         }
@@ -452,7 +483,7 @@ export default function InventoryManagement({ className = '' }: InventoryManagem
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
-                {filteredProducts.map((product) => {
+                {sortedProducts.map((product) => {
                   const status = getStockLevelStatus(product.quantity, product.minStockLevel);
                   const productId = product._id?.toString() || '';
                   return (

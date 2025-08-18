@@ -863,9 +863,51 @@ const WarehouseVisualization: React.FC = () => {
               </div>
             </div>
 
-            {/* Shelf Details */}
+            {/* Right Panel: Search Results or Shelf Details */}
             <div className="lg:col-span-1">
-              {selectedShelf ? (
+              {searchResults.length > 0 ? (
+                // Search Results shown on the side instead of bottom
+                <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl">
+                  <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+                    <h2 className="text-lg font-medium text-white">Search Results ({searchResults.length})</h2>
+                    <button
+                      onClick={() => { setSearchQuery(''); setSearchResults([]); setHighlightedShelves(new Set()); searchInputRef.current?.focus(); }}
+                      className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/50"
+                    >Clear</button>
+                  </div>
+                  <div className="p-6">
+                    <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1 nice-scrollbar">
+                      {searchResults.map((product) => (
+                        <button
+                          key={product._id?.toString()}
+                          onClick={() => openProductDetails(product)}
+                          className="w-full text-left bg-slate-700/30 hover:bg-slate-700/50 rounded-lg p-3 transition-colors"
+                        >
+                          <div className="flex gap-3 items-start">
+                            <div className="flex-shrink-0">
+                              {product.images && product.images.length > 0 ? (
+                                <img
+                                  src={product.images[0]}
+                                  alt={product.name}
+                                  className="h-10 w-10 rounded object-cover border border-slate-600"
+                                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/api/placeholder/40/40'; }}
+                                />
+                              ) : (
+                                <div className="h-10 w-10 rounded bg-slate-600/40 border border-slate-600 flex items-center justify-center text-[10px] text-slate-300">No Img</div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-sm font-medium text-white mb-0.5 truncate" title={product.name}>{product.name}</h3>
+                              <p className="text-xs text-slate-400 truncate">SKU: {product.sku}</p>
+                              <p className="text-xs text-slate-400 truncate">Category: {product.category}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : selectedShelf ? (
                 <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl">
                   <div className="px-6 py-4 border-b border-slate-700/50">
                     <div className="flex items-start justify-between gap-3">
@@ -1148,62 +1190,7 @@ const WarehouseVisualization: React.FC = () => {
             </div>
           )}
 
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="mt-8 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl">
-              <div className="px-6 py-4 border-b border-slate-700/50">
-                <h2 className="text-lg font-medium text-white">Search Results ({searchResults.length})</h2>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {searchResults.map((product) => {
-                    return (
-                      <button
-                        key={product._id?.toString()}
-                        onClick={() => openProductDetails(product)}
-                        className="text-left bg-slate-700/30 hover:bg-slate-700/50 rounded-lg p-4 transition-colors"
-                      >
-                        <div className="flex gap-3 items-start">
-                          <div className="flex-shrink-0">
-                            {product.images && product.images.length > 0 ? (
-                              <img
-                                src={product.images[0]}
-                                alt={product.name}
-                                className="h-12 w-12 rounded object-cover border border-slate-600"
-                                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/api/placeholder/48/48'; }}
-                              />
-                            ) : (
-                              <div className="h-12 w-12 rounded bg-slate-600/40 border border-slate-600 flex items-center justify-center text-[10px] text-slate-300">No Img</div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-medium text-white mb-1 truncate" title={product.name}>{product.name}</h3>
-                            <p className="text-xs text-slate-400 mb-0.5 truncate">SKU: {product.sku}</p>
-                            <p className="text-xs text-slate-400 truncate">Category: {product.category}</p>
-                            {product.locationDetails && product.locationDetails.length > 0 && (
-                              <div className="mt-2">
-                                <p className="text-[11px] text-slate-300 mb-1">Locations:</p>
-                                {product.locationDetails.map((location, index) => {
-                                  const locationQuantity = product.locations?.find(loc => 
-                                    loc.locationId.toString() === location._id?.toString()
-                                  )?.quantity || 0;
-                                  return (
-                                    <div key={index} className="text-[11px] text-cyan-400 truncate">
-                                      {location.name} ({locationQuantity} qty)
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Bottom search results removed; now shown in right panel */}
         </div>
       </div>
       {showProductDetail && detailProduct && (
